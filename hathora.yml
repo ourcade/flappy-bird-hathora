@@ -1,0 +1,39 @@
+# this could be auto generated with hathora init instead of throwing an error?
+types:
+  # Location is a 2d coordinate
+  Location:
+    x: float
+    y: float
+
+  Input:
+    space: boolean
+
+  # Player has a userId and a location
+  Player:
+    id: UserId
+    location: Location
+    input: Input
+
+  # GameState has an array of players
+  GameState:
+    players: Player[]
+
+methods:
+  # joinGame will let players join the game
+  joinGame:
+
+  # we'll call moveTo when the user clicks on the map to set their target location
+  flap:
+
+# use anonymous login to keep things simple for now
+auth:
+  anonymous: {}
+
+# tell the server to send the value of GameState to all clients (and keep it updated as state changes)
+userState: GameState
+
+# set the error type to string
+error: string
+
+# configure the server tick to run every 50ms (20 times a second)
+tick: 50
