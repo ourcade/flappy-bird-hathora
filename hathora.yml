@@ -1,7 +1,6 @@
 # this could be auto generated with hathora init instead of throwing an error?
 types:
-  # Location is a 2d coordinate
-  Location:
+  Vector2:
     x: float
     y: float
 
@@ -11,16 +10,24 @@ types:
   # Player has a userId and a location
   Player:
     id: UserId
-    location: Location
+    ready: boolean
+    location: Vector2
+    velocity: Vector2
     input: Input
 
   # GameState has an array of players
   GameState:
+    state: int
+    time: float
+    startTime: float
     players: Player[]
 
 methods:
   # joinGame will let players join the game
   joinGame:
+  leaveGame:
+
+  ready:
 
   # we'll call moveTo when the user clicks on the map to set their target location
   flap:
