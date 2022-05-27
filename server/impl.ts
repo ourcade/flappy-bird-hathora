@@ -41,10 +41,11 @@ export class Impl implements Methods<InternalState> {
 			return Response.error('cannot join a game that already started')
 		}
 
+		const idx = state.players.length
 		state.players.push({
 			id: userId,
 			ready: false,
-			location: { x: 0, y: 0 },
+			location: { x: 180, y: 120 + idx * 30 },
 			velocity: { x: 0, y: 0 },
 			input: { space: false },
 		})

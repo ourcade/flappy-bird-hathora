@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import Phaser from 'phaser'
 import { Columns, Section } from 'react-bulma-components'
 import { GameScene } from './scenes/GameScene'
+import { PreloadScene } from './scenes/PreloadScene'
 
 export function Game() {
 	const ref = useRef()
@@ -24,9 +25,10 @@ export function Game() {
 			},
 		})
 
+		game.scene.add('preload', PreloadScene)
 		game.scene.add('game', GameScene)
 
-		game.scene.start('game')
+		game.scene.start('preload')
 
 		return () => {
 			game.destroy(true)

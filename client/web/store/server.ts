@@ -1,9 +1,15 @@
-import { makeAutoObservable } from 'mobx'
+import { makeAutoObservable, ObservableMap } from 'mobx'
 import merge from 'lodash/merge'
 
 import { HathoraClient } from '../../.hathora/client'
 import type { HathoraConnection } from '../../.hathora/client'
-import type { GameState, IInitializeRequest } from '../../../api/types'
+import type {
+	GameState,
+	IInitializeRequest,
+	Input,
+	Player,
+	Vector2,
+} from '../../../api/types'
 
 const TOKEN_KEY = 'hathora-token'
 function storeToken(token: string) {
@@ -14,13 +20,32 @@ function getToken() {
 	return localStorage.getItem(TOKEN_KEY)
 }
 
+class Vec2 implements Vector2 {
+	x = 0
+	y = 0
+}
+
+class ServerPlayer implements Player {
+	id: string = ''
+	ready: boolean = false
+	location = new Vec2()
+	velocity = new Vec2()
+	input = { space: false }
+}
+
+class ServerState {
+	time: number = 0
+	startTime: number = 0
+	state: number = 0
+	players = new ObservableMap<string, ServerPlayer>()
+}
+
 export class ServerStore {
 	private readonly client: HathoraClient
 	private _token: string | null = null
 	private _connection: HathoraConnection | null = null
-	private localPlayerIndex = -1
 
-	readonly state: GameState = { time: 0, startTime: 0, players: [], state: 0 }
+	readonly state = new ServerState()
 
 	get token() {
 		return this._token
@@ -35,7 +60,11 @@ export class ServerStore {
 	}
 
 	get localPlayer() {
-		return this.state.players[this.localPlayerIndex]
+		if (!this.user) {
+			return null
+		}
+
+		return this.state.players.get(this.user.id)
 	}
 
 	constructor() {
@@ -66,10 +95,6 @@ export class ServerStore {
 			this._token,
 			stateId,
 			(update) => {
-				if (this.localPlayerIndex < 0) {
-					const idx = this.state.players.findIndex((p) => p.id === this.user.id)
-					this.setLocalPlayerIndex(idx)
-				}
 				this.updateState(update.state)
 			},
 			console.error
@@ -88,11 +113,23 @@ export class ServerStore {
 		this._connection = conn
 	}
 
-	private setLocalPlayerIndex(idx: number) {
-		this.localPlayerIndex = idx
-	}
-
 	private updateState(newState: GameState) {
-		merge(this.state, newState)
+		// NOTE: may not want to do this and just pick out what we want tracked
+		// in mobx vs what is going to be queried each tick anyway
+		// merge(this.state, newState)
+		this.state.time = newState.time
+		this.state.startTime = newState.startTime
+		this.state.state = newState.state
+		newState.players.forEach((p) => {
+			if (!this.state.players.has(p.id)) {
+				this.state.players.set(p.id, new ServerPlayer())
+			}
+
+			const ep = this.state.players.get(p.id)
+			ep.ready = p.ready
+			merge(ep.location, p.location)
+			merge(ep.velocity, p.velocity)
+			merge(ep.input, p.input)
+		})
 	}
 }
