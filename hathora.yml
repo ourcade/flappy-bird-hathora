@@ -14,6 +14,7 @@ types:
     location: Vector2
     velocity: Vector2
     input: Input
+    enabled: boolean
 
   # GameState has an array of players
   GameState:

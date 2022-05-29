@@ -31,6 +31,7 @@ class ServerPlayer implements Player {
 	location = new Vec2()
 	velocity = new Vec2()
 	input = { space: false }
+	enabled = true
 }
 
 class ServerState {
@@ -127,6 +128,7 @@ export class ServerStore {
 
 			const ep = this.state.players.get(p.id)
 			ep.ready = p.ready
+			ep.enabled = p.enabled
 			merge(ep.location, p.location)
 			merge(ep.velocity, p.velocity)
 			merge(ep.input, p.input)

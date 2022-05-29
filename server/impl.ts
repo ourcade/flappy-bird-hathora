@@ -10,6 +10,10 @@ import {
 	ILeaveGameRequest,
 } from '../api/types'
 
+import * as Level from './shared/level'
+import * as Rect from './shared/rect'
+import * as Player from './shared/player'
+
 type InternalState = GameState
 
 enum State {
@@ -41,6 +45,12 @@ export class Impl implements Methods<InternalState> {
 			return Response.error('cannot join a game that already started')
 		}
 
+		const existingPlayer = state.players.find((p) => p.id === userId)
+		if (existingPlayer) {
+			// TODO: any logic if you rejoined?
+			return Response.ok()
+		}
+
 		const idx = state.players.length
 		state.players.push({
 			id: userId,
@@ -48,6 +58,7 @@ export class Impl implements Methods<InternalState> {
 			location: { x: 180, y: 120 + idx * 30 },
 			velocity: { x: 0, y: 0 },
 			input: { space: false },
+			enabled: true,
 		})
 
 		state.state = State.WaitingForPlayers
@@ -145,6 +156,7 @@ export class Impl implements Methods<InternalState> {
 		}
 	}
 
+	// NOTE: this logic here will need to be shared by client
 	playTick(state: InternalState, timeDelta: number) {
 		// set velocity
 		state.players.forEach((player) => {
@@ -154,6 +166,10 @@ export class Impl implements Methods<InternalState> {
 		})
 
 		state.players.forEach((player) => {
+			if (!player.enabled) {
+				return
+			}
+
 			// movement
 			player.location.x += player.velocity.x * timeDelta
 			player.location.y += player.velocity.y * timeDelta
@@ -163,6 +179,20 @@ export class Impl implements Methods<InternalState> {
 				player.velocity.y + GRAVITY.y * timeDelta,
 				50
 			)
+
+			// collisions
+			const playerRect = Player.rect(player.location.x, player.location.y)
+			for (const pipe of Level.level.pipes) {
+				if (!Rect.intersects(playerRect, pipe.rect)) {
+					continue
+				}
+				player.enabled = false
+				setTimeout(() => {
+					player.location.x -= 100
+					player.location.y = 240
+					player.enabled = true
+				}, 500)
+			}
 		})
 
 		// set space input to false at the end of each tick

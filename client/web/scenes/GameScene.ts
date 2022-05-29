@@ -3,6 +3,7 @@ import type { IReactionDisposer } from 'mobx'
 import Phaser from 'phaser'
 
 import { rootStore } from '../store'
+import { level } from '../../../server/shared/level'
 
 export class GameScene extends Phaser.Scene {
 	private players = new Map<string, Phaser.GameObjects.Rectangle>()
@@ -48,6 +49,11 @@ export class GameScene extends Phaser.Scene {
 			rootStore.server.connection.ready({})
 		})
 
+		level.pipes.forEach((pipe) => {
+			const p = this.add.image(pipe.x, pipe.y, 'pipe').setOrigin(0)
+			p.flipY = pipe.flipped
+		})
+
 		this.subs.push(
 			autorun(() => {
 				const players = rootStore.server.state.players.entries()
@@ -60,13 +66,10 @@ export class GameScene extends Phaser.Scene {
 					}
 
 					const p = entry[1]
-					const player = this.add.rectangle(
-						p.location.x,
-						p.location.y,
-						25,
-						25,
-						0xff0000
-					)
+					const player = this.add
+						.rectangle(p.location.x, p.location.y, 34, 24, 0xff0000)
+						.setOrigin(0)
+
 					this.players.set(id, player)
 
 					if (localPlayer.id === p.id) {
