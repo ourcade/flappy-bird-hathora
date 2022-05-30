@@ -10,20 +10,9 @@ import {
 	ILeaveGameRequest,
 } from '../api/types'
 
-import * as Level from './shared/level'
-import * as Rect from './shared/rect'
-import * as Player from './shared/player'
+import { Level, Rect, Player, State, GRAVITY } from './shared'
 
 type InternalState = GameState
-
-enum State {
-	Empty,
-	WaitingForPlayers,
-	Countdown,
-	Playing,
-}
-
-const GRAVITY = { x: 0, y: 20 }
 
 export class Impl implements Methods<InternalState> {
 	initialize(ctx: Context, request: IInitializeRequest): InternalState {
@@ -32,6 +21,7 @@ export class Impl implements Methods<InternalState> {
 			time: 0,
 			startTime: 0,
 			players: [],
+			winner: '',
 		}
 	}
 
@@ -153,6 +143,9 @@ export class Impl implements Methods<InternalState> {
 			case State.Playing:
 				this.playTick(state, timeDelta)
 				break
+
+			case State.Finished:
+				break
 		}
 	}
 
@@ -165,9 +158,9 @@ export class Impl implements Methods<InternalState> {
 			}
 		})
 
-		state.players.forEach((player) => {
+		for (const player of state.players) {
 			if (!player.enabled) {
-				return
+				continue
 			}
 
 			// movement
@@ -193,7 +186,13 @@ export class Impl implements Methods<InternalState> {
 					player.enabled = true
 				}, 500)
 			}
-		})
+
+			if (Rect.intersects(playerRect, Level.level.goal)) {
+				state.winner = player.id
+				state.state = State.Finished
+				break
+			}
+		}
 
 		// set space input to false at the end of each tick
 		state.players.forEach((player) => {

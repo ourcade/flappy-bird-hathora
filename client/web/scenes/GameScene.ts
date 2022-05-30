@@ -54,6 +54,9 @@ export class GameScene extends Phaser.Scene {
 			p.flipY = pipe.flipped
 		})
 
+		const goal = level.goal
+		this.add.image(goal.left, goal.top, 'goal').setOrigin(0).setAlpha(0.7)
+
 		this.subs.push(
 			autorun(() => {
 				const players = rootStore.server.state.players.entries()
@@ -78,6 +81,46 @@ export class GameScene extends Phaser.Scene {
 						this.cameras.main.setBounds(0, 0, 10000, this.scale.height)
 					}
 				}
+			}),
+			autorun(() => {
+				const winner = rootStore.server.state.winner
+				if (!winner) {
+					return
+				}
+
+				const winningPlayer = this.players.get(winner)
+				if (!winningPlayer) {
+					return
+				}
+
+				const cam = this.cameras.main
+				cam.stopFollow()
+				cam.pan(
+					winningPlayer.x,
+					winningPlayer.y,
+					700,
+					Phaser.Math.Easing.Sine.InOut
+				)
+
+				const x = cam.scrollX + width * 0.5
+				const y = winningPlayer.y > height * 0.5 ? height * 0.25 : height * 0.75
+				const t = this.add
+					.text(x, y, 'Winner!', {
+						fontSize: '100px',
+						stroke: '#000000',
+						strokeThickness: 10,
+					})
+					.setOrigin(0.5)
+				this.add
+					.text(t.x, t.y + t.height * 0.5, 'Press SPACE to continue...', {
+						stroke: '#000000',
+						strokeThickness: 3,
+					})
+					.setOrigin(0.5)
+
+				this.input.keyboard.once('keydown-SPACE', () => {
+					rootStore.server.disconnect()
+				})
 			})
 		)
 	}

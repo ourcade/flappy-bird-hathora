@@ -7,3 +7,4 @@ dist
 !/data/saves
 /client/prototype-ui/*
 !/client/prototype-ui/plugins
+/client/web/public/.DS_Store

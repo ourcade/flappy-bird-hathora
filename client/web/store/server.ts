@@ -11,6 +11,8 @@ import type {
 	Vector2,
 } from '../../../api/types'
 
+import { State } from '../../../server/shared'
+
 const TOKEN_KEY = 'hathora-token'
 function storeToken(token: string) {
 	localStorage.setItem(TOKEN_KEY, token)
@@ -37,8 +39,13 @@ class ServerPlayer implements Player {
 class ServerState {
 	time: number = 0
 	startTime: number = 0
-	state: number = 0
+	state: State = State.Empty
 	players = new ObservableMap<string, ServerPlayer>()
+	winner = ''
+
+	constructor() {
+		makeAutoObservable(this)
+	}
 }
 
 export class ServerStore {
@@ -110,6 +117,13 @@ export class ServerStore {
 		return this.connection
 	}
 
+	disconnect() {
+		const id = this.connection.stateId
+		this.connection.disconnect()
+		this._connection = null
+		window.location.href = window.location.href.replace(id, '')
+	}
+
 	private setConnection(conn: HathoraConnection) {
 		this._connection = conn
 	}
@@ -121,6 +135,8 @@ export class ServerStore {
 		this.state.time = newState.time
 		this.state.startTime = newState.startTime
 		this.state.state = newState.state
+		this.state.winner = newState.winner
+
 		newState.players.forEach((p) => {
 			if (!this.state.players.has(p.id)) {
 				this.state.players.set(p.id, new ServerPlayer())

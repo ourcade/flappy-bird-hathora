@@ -5,6 +5,7 @@ export class PreloadScene extends Phaser.Scene {
 	preload() {
 		this.load.image('background', 'assets/background-day.png')
 		this.load.image('pipe', 'assets/pipe-green.png')
+		this.load.image('goal', 'assets/goal.png')
 	}
 
 	update(): void {

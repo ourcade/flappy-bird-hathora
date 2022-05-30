@@ -22,6 +22,7 @@ types:
     time: float
     startTime: float
     players: Player[]
+    winner: UserId
 
 methods:
   # joinGame will let players join the game
