@@ -4,10 +4,19 @@ import Phaser from 'phaser'
 
 import { rootStore } from '../store'
 import { level } from '../../../server/shared/level'
-import { State } from '../../../server/shared'
+import { Move, Player, State } from '../../../server/shared'
+
+const delta = 1e3 / 60
+const step = 1 / 60
+let accumulator = 0
 
 export class GameScene extends Phaser.Scene {
 	private players = new Map<string, Phaser.GameObjects.Rectangle>()
+	private playersDebug = new Map<string, Phaser.GameObjects.Rectangle>()
+	private playersPredictedDebug = new Map<
+		string,
+		Phaser.GameObjects.Rectangle
+	>()
 	private readyText: Phaser.GameObjects.Text
 	private countdownText: Phaser.GameObjects.Text
 
@@ -72,6 +81,11 @@ export class GameScene extends Phaser.Scene {
 		const goal = level.goal
 		this.add.image(goal.left, goal.top, 'goal').setOrigin(0).setAlpha(0.7)
 
+		this.handlePlayerJoins()
+		this.handleStateEnter()
+	}
+
+	private handlePlayerJoins() {
 		this.subs.push(
 			// player joins
 			autorun(() => {
@@ -92,13 +106,30 @@ export class GameScene extends Phaser.Scene {
 
 					this.players.set(id, player)
 
+					const debug = this.add
+						.rectangle(p.location.x, p.location.y, 34, 24, colors[p.idx], 0.5)
+						.setOrigin(0)
+					this.playersDebug.set(id, debug)
+
+					const predicted = this.add
+						.rectangle(p.location.x, p.location.y, 34, 25)
+						.setOrigin(0)
+						.setStrokeStyle(1, 0x000000, 0.5)
+						.setFillStyle()
+					this.playersPredictedDebug.set(id, predicted)
+
 					if (localPlayer.id === p.id) {
 						this.cameras.main.startFollow(player)
 						// NOTE: width should be something else and based on whatever level is loaded
 						this.cameras.main.setBounds(0, 0, 10000, this.scale.height)
 					}
 				}
-			}),
+			})
+		)
+	}
+
+	private handleStateEnter() {
+		this.subs.push(
 			// countdown
 			autorun(() => {
 				if (rootStore.server.state.state !== State.Countdown) {
@@ -136,6 +167,8 @@ export class GameScene extends Phaser.Scene {
 					Phaser.Math.Easing.Sine.InOut
 				)
 
+				const { height } = this.scale
+
 				const x = winningPlayer.x
 				const y = winningPlayer.y > height * 0.5 ? height * 0.25 : height * 0.75
 				const t = this.add
@@ -159,20 +192,55 @@ export class GameScene extends Phaser.Scene {
 		)
 	}
 
-	update(_t: number, dt: number) {
-		if (Phaser.Input.Keyboard.JustDown(this.cursors.space)) {
-			rootStore.server.connection.flap({})
-		}
+	fixedUpdate(dt: number) {
+		const space = Phaser.Input.Keyboard.JustDown(this.cursors.space)
 
 		switch (rootStore.server.state.state) {
-			case State.Finished:
+			case State.Finished: {
+				for (const entry of rootStore.server.state.players.entries()) {
+					const id = entry[0]
+					const sprite = this.players.get(id)
+					const debug = this.playersDebug.get(id)
+					const predicted = this.playersPredictedDebug.get(id)
+					const p = rootStore.server.state.players.get(id)
+					sprite.x = p.location.x
+					sprite.y = p.location.y
+					debug.x = p.slocation.x
+					debug.y = p.slocation.y
+					predicted.x = p.plocation.x
+					predicted.y = p.plocation.y
+				}
+				break
+			}
+
 			case State.Playing: {
 				for (const entry of rootStore.server.state.players.entries()) {
 					const id = entry[0]
 					const sprite = this.players.get(id)
+					const debug = this.playersDebug.get(id)
+					const predicted = this.playersPredictedDebug.get(id)
 					const p = rootStore.server.state.players.get(id)
+
+					if (p.id === rootStore.server.localPlayer.id) {
+						rootStore.server.action(space, p.enabled)
+						p.input.space = space
+						const { x, y } = Move.playerMove(p.location.x, p.location.y, p, dt)
+						p.location.x = x
+						p.location.y = y
+						const playerRect = Player.rect(p.location.x, p.location.y)
+						const { died } = Move.collisions(playerRect)
+						p.enabled = !died
+						Move.end(p)
+					} else {
+						// dead reckoning for remote
+					}
+
 					sprite.x = p.location.x
 					sprite.y = p.location.y
+					debug.x = p.slocation.x
+					debug.y = p.slocation.y
+					predicted.x = p.plocation.x
+					predicted.y = p.plocation.y
 				}
 			}
 
@@ -188,5 +256,19 @@ export class GameScene extends Phaser.Scene {
 		const sx = this.cameras.main.scrollX
 		this.background.tilePositionX = sx
 		this.ground.tilePositionX = sx
+	}
+
+	update(_t: number, dt: number) {
+		if (dt > 1e3) {
+			// skip large dt's
+			return
+		}
+
+		accumulator += dt
+
+		while (accumulator >= delta) {
+			this.fixedUpdate(step)
+			accumulator -= delta
+		}
 	}
 }

@@ -8,3 +8,5 @@ dist
 /client/prototype-ui/*
 !/client/prototype-ui/plugins
 /client/web/public/.DS_Store
+/.DS_Store
+/client/.DS_Store

@@ -6,12 +6,11 @@ import type { HathoraConnection } from '../../.hathora/client'
 import type {
 	GameState,
 	IInitializeRequest,
-	Input,
-	Player,
+	Player as PlayerType,
 	Vector2,
 } from '../../../api/types'
 
-import { State } from '../../../server/shared'
+import { Move, State, Player } from '../../../server/shared'
 
 const TOKEN_KEY = 'hathora-token'
 function storeToken(token: string) {
@@ -27,14 +26,17 @@ class Vec2 implements Vector2 {
 	y = 0
 }
 
-class ServerPlayer implements Player {
+class ServerPlayer implements PlayerType {
 	id: string = ''
 	idx = -1
 	ready: boolean = false
 	location = new Vec2()
+	slocation = new Vec2()
+	plocation = new Vec2()
 	velocity = new Vec2()
 	input = { space: false }
 	enabled = true
+	lastTimeStamp = -1
 }
 
 class ServerState {
@@ -56,6 +58,9 @@ export class ServerStore {
 
 	readonly state = new ServerState()
 
+	private _rtt = 0
+	private moves: { time: number; flap: boolean; enabled: boolean }[] = []
+
 	get token() {
 		return this._token
 	}
@@ -74,6 +79,10 @@ export class ServerStore {
 		}
 
 		return this.state.players.get(this.user.id)
+	}
+
+	get rtt() {
+		return this._rtt
 	}
 
 	constructor() {
@@ -118,6 +127,16 @@ export class ServerStore {
 		return this.connection
 	}
 
+	action(flap = false, enabled = true) {
+		const now = Date.now()
+		this.connection.ping({ time: now })
+		if (flap) {
+			this.connection.flap({})
+		}
+
+		this.moves.push({ time: now, flap, enabled })
+	}
+
 	disconnect() {
 		const id = this.connection.stateId
 		this.connection.disconnect()
@@ -144,13 +163,67 @@ export class ServerStore {
 			}
 
 			const ep = this.state.players.get(p.id)
+			if (ep.enabled !== p.enabled) {
+				merge(ep.location, p.location)
+				console.log(`${ep.enabled} !== ${p.enabled}`)
+			}
+
 			ep.id = p.id
 			ep.idx = idx
 			ep.ready = p.ready
 			ep.enabled = p.enabled
-			merge(ep.location, p.location)
+			ep.lastTimeStamp = p.lastTimeStamp
 			merge(ep.velocity, p.velocity)
+			merge(ep.slocation, p.location)
+			merge(ep.plocation, p.location)
+			if (p.id !== this.localPlayer.id || newState.state !== State.Playing) {
+				merge(ep.location, p.location)
+			}
+
 			merge(ep.input, p.input)
 		})
+
+		const p = this.state.players.get(this.user.id)
+		if (!p) {
+			return
+		}
+
+		// calculate RTT
+		const now = Date.now()
+		// NOTE: assuming packets always arrive in the
+		// order it was sent aka old timestamps won't come after
+		// newer timestamps
+		const rtt = now - (p.lastTimeStamp || now)
+		this._rtt = (this._rtt + rtt) * 0.5
+
+		if (newState.state !== State.Playing) {
+			return
+		}
+
+		// prediction
+		// remove all moves (flaps) older or equal to lastTimeStamp
+		while (this.moves.length > 0) {
+			const move = this.moves[0]
+			if (move.time > p.lastTimeStamp) {
+				break
+			}
+
+			this.moves.shift()
+		}
+
+		// sim remaining moves
+		for (const move of this.moves) {
+			p.input.space = move.flap
+			p.enabled = move.enabled
+
+			const { x, y } = Move.playerMove(p.slocation.x, p.slocation.y, p, 1 / 60)
+			p.plocation.x = x
+			p.plocation.y = y
+
+			const playerRect = Player.rect(p.plocation.x, p.plocation.y)
+			const { died } = Move.collisions(playerRect)
+			p.enabled = !died
+			Move.end(p)
+		}
 	}
 }

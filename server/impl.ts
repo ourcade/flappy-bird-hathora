@@ -8,13 +8,23 @@ import {
 	IFlapRequest,
 	IReadyRequest,
 	ILeaveGameRequest,
+	IPingRequest,
 } from '../api/types'
 
-import { Level, Rect, Player, State, GRAVITY } from './shared'
+import { State, Move, Player } from './shared'
 
 type InternalState = GameState
 
+let last = performance.now()
+const delta = 1e3 / 60 // / 1000
+const step = 1 / 60
+
+let frames = 0
+let total = 0
+
 export class Impl implements Methods<InternalState> {
+	private accumulator = 0
+
 	initialize(ctx: Context, request: IInitializeRequest): InternalState {
 		return {
 			state: State.Empty,
@@ -49,6 +59,7 @@ export class Impl implements Methods<InternalState> {
 			velocity: { x: 0, y: 0 },
 			input: { space: false },
 			enabled: true,
+			lastTimeStamp: 0,
 		})
 
 		state.state = State.WaitingForPlayers
@@ -85,6 +96,22 @@ export class Impl implements Methods<InternalState> {
 		return Response.ok()
 	}
 
+	ping(
+		state: GameState,
+		userId: string,
+		ctx: Context,
+		request: IPingRequest
+	): Response {
+		const time = request.time
+		const player = state.players.find((player) => player.id === userId)
+		if (!player) {
+			return Response.error('player not found')
+		}
+
+		player.lastTimeStamp = time
+		return Response.ok()
+	}
+
 	flap(
 		state: InternalState,
 		userId: UserId,
@@ -107,8 +134,8 @@ export class Impl implements Methods<InternalState> {
 		return state
 	}
 
-	onTick(state: InternalState, ctx: Context, timeDelta: number): void {
-		state.time += timeDelta
+	tick(state: InternalState, dt: number) {
+		state.time += dt
 
 		switch (state.state) {
 			default:
@@ -134,14 +161,15 @@ export class Impl implements Methods<InternalState> {
 				}
 
 				state.players.forEach((player) => {
-					player.velocity.x = 50
+					player.velocity.x = 30
 					player.velocity.y = 0
 				})
+				this.accumulator = 0
 				state.state = State.Playing
 				break
 
 			case State.Playing:
-				this.playTick(state, timeDelta)
+				this.playTick(state, dt)
 				break
 
 			case State.Finished:
@@ -149,65 +177,66 @@ export class Impl implements Methods<InternalState> {
 		}
 	}
 
-	// NOTE: this logic here will need to be shared by client
-	playTick(state: InternalState, timeDelta: number) {
-		// set velocity
-		state.players.forEach((player) => {
-			if (player.input.space) {
-				player.velocity.y = -50
-			}
-		})
+	onTick(state: InternalState, ctx: Context, _dt: number): void {
+		const timestamp = performance.now()
+		const dt = timestamp - last
+		last = timestamp
 
+		total += dt
+		this.accumulator += dt
+
+		// NOTE: this is to get 60 updates per second
+		// console.log(`${this.accumulator} >= ${delta}`)
+		while (this.accumulator >= delta) {
+			this.tick(state, step)
+
+			++frames
+
+			this.accumulator -= delta
+		}
+
+		if (total >= 1000) {
+			for (let i = frames; i < 60; ++i) {
+				this.tick(state, step)
+
+				++frames
+			}
+
+			frames = 0
+			total -= 1000
+		}
+	}
+
+	playTick(state: InternalState, dt: number) {
 		for (const player of state.players) {
-			if (!player.enabled) {
-				continue
-			}
+			Move.simRespawn(player, dt)
 
-			// movement
-			player.location.x += player.velocity.x * timeDelta
-			player.location.y += player.velocity.y * timeDelta
-
-			// gravity
-			player.velocity.y = Math.min(
-				player.velocity.y + GRAVITY.y * timeDelta,
-				50
+			const { x, y } = Move.playerMove(
+				player.location.x,
+				player.location.y,
+				player,
+				dt
 			)
+			player.location.x = x
+			player.location.y = y
 
-			// collisions
-			const playerRect = Player.rect(player.location.x, player.location.y)
-			for (const pipe of Level.level.pipes) {
-				if (!Rect.intersects(playerRect, pipe.rect)) {
-					continue
+			if (player.enabled) {
+				const playerRect = Player.rect(player.location.x, player.location.y)
+				const { goal, died } = Move.collisions(playerRect)
+
+				if (goal) {
+					state.winner = player.id
+				} else if (died) {
+					Move.queueRespawn(player)
 				}
-				player.enabled = false
-				setTimeout(() => {
-					player.location.x -= 100
-					player.location.y = 240
-					player.enabled = true
-				}, 500)
-			}
-
-			// ground
-			if (Rect.intersects(playerRect, Level.level.ground)) {
-				player.enabled = false
-				setTimeout(() => {
-					player.location.x -= 100
-					player.location.y = 240
-					player.enabled = true
-				}, 500)
-			}
-
-			// goal
-			if (Rect.intersects(playerRect, Level.level.goal)) {
-				state.winner = player.id
-				state.state = State.Finished
-				break
 			}
 		}
 
-		// set space input to false at the end of each tick
-		state.players.forEach((player) => {
-			player.input.space = false
-		})
+		if (state.winner) {
+			state.state = State.Finished
+		}
+
+		// end of each tick
+		state.players.forEach(Move.end)
 	}
 }
