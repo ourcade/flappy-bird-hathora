@@ -4,13 +4,16 @@ import Phaser from 'phaser'
 
 import { rootStore } from '../store'
 import { level } from '../../../server/shared/level'
+import { State } from '../../../server/shared'
 
 export class GameScene extends Phaser.Scene {
 	private players = new Map<string, Phaser.GameObjects.Rectangle>()
 	private readyText: Phaser.GameObjects.Text
+	private countdownText: Phaser.GameObjects.Text
 
 	private cursors: Phaser.Types.Input.Keyboard.CursorKeys
 	private background: Phaser.GameObjects.TileSprite
+	private ground: Phaser.GameObjects.TileSprite
 
 	private subs: IReactionDisposer[] = []
 
@@ -33,12 +36,24 @@ export class GameScene extends Phaser.Scene {
 			.tileSprite(0, height, width, height, 'background')
 			.setOrigin(0, 1)
 			.setScrollFactor(0)
-			.setDepth(0)
+
+		const g = level.ground
+		this.ground = this.add
+			.tileSprite(g.left, g.top, g.right - g.left, g.bottom - g.top, 'base')
+			.setOrigin(0)
 
 		this.readyText = this.add
 			.text(width * 0.5, height * 0.5, 'Press SPACE when ready...')
 			.setOrigin(0.5)
-			.setDepth(0)
+
+		this.countdownText = this.add
+			.text(width * 0.5, height * 0.5, '3', {
+				fontSize: '100px',
+				stroke: '#000000',
+				strokeThickness: 12,
+			})
+			.setOrigin(0.5)
+			.setVisible(false)
 
 		this.input.keyboard.once('keydown-SPACE', () => {
 			if (rootStore.server.localPlayer.ready) {
@@ -58,6 +73,7 @@ export class GameScene extends Phaser.Scene {
 		this.add.image(goal.left, goal.top, 'goal').setOrigin(0).setAlpha(0.7)
 
 		this.subs.push(
+			// player joins
 			autorun(() => {
 				const players = rootStore.server.state.players.entries()
 				const localPlayer = rootStore.server.localPlayer
@@ -68,9 +84,10 @@ export class GameScene extends Phaser.Scene {
 						continue
 					}
 
+					const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xf0f0f]
 					const p = entry[1]
 					const player = this.add
-						.rectangle(p.location.x, p.location.y, 34, 24, 0xff0000)
+						.rectangle(p.location.x, p.location.y, 34, 24, colors[p.idx])
 						.setOrigin(0)
 
 					this.players.set(id, player)
@@ -82,6 +99,23 @@ export class GameScene extends Phaser.Scene {
 					}
 				}
 			}),
+			// countdown
+			autorun(() => {
+				if (rootStore.server.state.state !== State.Countdown) {
+					return
+				}
+
+				this.countdownText.setVisible(true)
+			}),
+			// playing,
+			autorun(() => {
+				if (rootStore.server.state.state !== State.Playing) {
+					return
+				}
+
+				this.countdownText.setVisible(false)
+			}),
+			// winner
 			autorun(() => {
 				const winner = rootStore.server.state.winner
 				if (!winner) {
@@ -102,7 +136,7 @@ export class GameScene extends Phaser.Scene {
 					Phaser.Math.Easing.Sine.InOut
 				)
 
-				const x = cam.scrollX + width * 0.5
+				const x = winningPlayer.x
 				const y = winningPlayer.y > height * 0.5 ? height * 0.25 : height * 0.75
 				const t = this.add
 					.text(x, y, 'Winner!', {
@@ -130,14 +164,29 @@ export class GameScene extends Phaser.Scene {
 			rootStore.server.connection.flap({})
 		}
 
-		for (const entry of rootStore.server.state.players.entries()) {
-			const id = entry[0]
-			const sprite = this.players.get(id)
-			const p = rootStore.server.state.players.get(id)
-			sprite.x = p.location.x
-			sprite.y = p.location.y
+		switch (rootStore.server.state.state) {
+			case State.Finished:
+			case State.Playing: {
+				for (const entry of rootStore.server.state.players.entries()) {
+					const id = entry[0]
+					const sprite = this.players.get(id)
+					const p = rootStore.server.state.players.get(id)
+					sprite.x = p.location.x
+					sprite.y = p.location.y
+				}
+			}
+
+			case State.Countdown: {
+				const diff =
+					rootStore.server.state.startTime - rootStore.server.state.time
+				const secs = Math.ceil(diff)
+				this.countdownText.setText(`${secs}`)
+				break
+			}
 		}
 
-		this.background.tilePositionX = this.cameras.main.scrollX
+		const sx = this.cameras.main.scrollX
+		this.background.tilePositionX = sx
+		this.ground.tilePositionX = sx
 	}
 }

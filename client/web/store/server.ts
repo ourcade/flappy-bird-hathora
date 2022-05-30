@@ -29,6 +29,7 @@ class Vec2 implements Vector2 {
 
 class ServerPlayer implements Player {
 	id: string = ''
+	idx = -1
 	ready: boolean = false
 	location = new Vec2()
 	velocity = new Vec2()
@@ -137,12 +138,14 @@ export class ServerStore {
 		this.state.state = newState.state
 		this.state.winner = newState.winner
 
-		newState.players.forEach((p) => {
+		newState.players.forEach((p, idx) => {
 			if (!this.state.players.has(p.id)) {
 				this.state.players.set(p.id, new ServerPlayer())
 			}
 
 			const ep = this.state.players.get(p.id)
+			ep.id = p.id
+			ep.idx = idx
 			ep.ready = p.ready
 			ep.enabled = p.enabled
 			merge(ep.location, p.location)

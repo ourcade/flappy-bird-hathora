@@ -187,6 +187,17 @@ export class Impl implements Methods<InternalState> {
 				}, 500)
 			}
 
+			// ground
+			if (Rect.intersects(playerRect, Level.level.ground)) {
+				player.enabled = false
+				setTimeout(() => {
+					player.location.x -= 100
+					player.location.y = 240
+					player.enabled = true
+				}, 500)
+			}
+
+			// goal
 			if (Rect.intersects(playerRect, Level.level.goal)) {
 				state.winner = player.id
 				state.state = State.Finished

@@ -19,8 +19,13 @@ function createPipe(x: number, y: number, flipped = false) {
 
 export const level = {
 	pipes: [createPipe(500, 0, true)],
-	goal: Rect.create(1000, 0, {
+	ground: Rect.create(0, 400, {
 		padding: { x: 0, y: 0 },
+		width: 5000,
+		height: 80,
+	}),
+	goal: Rect.create(1000, 0, {
+		padding: { x: 20, y: 0 },
 		height: 2000,
 		width: 100,
 	}),

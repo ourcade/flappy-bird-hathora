@@ -34,6 +34,7 @@ const Home = observer(function () {
 
 		setConnecting(true)
 		rootStore.server.connect(roomId)
+		history.pushState({}, '', `/${roomId}`)
 		setConnecting(false)
 	}
 
