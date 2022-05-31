@@ -1,7 +1,9 @@
 import { makeAutoObservable, ObservableMap } from 'mobx'
 import merge from 'lodash/merge'
+import keyBy from 'lodash/keyBy'
 
 import { HathoraClient } from '../../.hathora/client'
+import { Color } from '../../../api/types'
 import type { HathoraConnection } from '../../.hathora/client'
 import type {
 	GameState,
@@ -10,7 +12,7 @@ import type {
 	Vector2,
 } from '../../../api/types'
 
-import { Move, State, Player } from '../../../server/shared'
+import { Logic, State, Player, DELTA, STEP } from '../../../server/shared'
 
 const TOKEN_KEY = 'hathora-token'
 function storeToken(token: string) {
@@ -28,11 +30,9 @@ class Vec2 implements Vector2 {
 
 class ServerPlayer implements PlayerType {
 	id: string = ''
-	idx = -1
+	color = Color.Yellow
 	ready: boolean = false
 	location = new Vec2()
-	slocation = new Vec2()
-	plocation = new Vec2()
 	velocity = new Vec2()
 	input = { space: false }
 	enabled = true
@@ -44,6 +44,9 @@ class ServerState {
 	startTime: number = 0
 	state: State = State.Empty
 	players = new ObservableMap<string, ServerPlayer>()
+	pPlayers = new ObservableMap<string, ServerPlayer>()
+	cPlayers = new ObservableMap<string, ServerPlayer>()
+
 	winner = ''
 
 	constructor() {
@@ -59,7 +62,9 @@ export class ServerStore {
 	readonly state = new ServerState()
 
 	private _rtt = 0
-	private moves: { time: number; flap: boolean; enabled: boolean }[] = []
+	private moves: { time: number; flap: boolean }[] = []
+
+	private needsPrediction = false
 
 	get token() {
 		return this._token
@@ -79,6 +84,14 @@ export class ServerStore {
 		}
 
 		return this.state.players.get(this.user.id)
+	}
+
+	get localClientPlayer() {
+		if (!this.user) {
+			return null
+		}
+
+		return this.state.cPlayers.get(this.user.id)
 	}
 
 	get rtt() {
@@ -127,18 +140,23 @@ export class ServerStore {
 		return this.connection
 	}
 
-	action(flap = false, enabled = true) {
+	action(flap?: boolean) {
 		const now = Date.now()
 		this.connection.ping({ time: now })
+		if (flap === undefined) {
+			return
+		}
+
 		if (flap) {
 			this.connection.flap({})
 		}
 
-		this.moves.push({ time: now, flap, enabled })
+		this.moves.push({ time: now, flap })
 	}
 
-	disconnect() {
+	async disconnect() {
 		const id = this.connection.stateId
+		await this.connection.leaveGame({})
 		this.connection.disconnect()
 		this._connection = null
 		window.location.href = window.location.href.replace(id, '')
@@ -149,81 +167,174 @@ export class ServerStore {
 	}
 
 	private updateState(newState: GameState) {
-		// NOTE: may not want to do this and just pick out what we want tracked
-		// in mobx vs what is going to be queried each tick anyway
-		// merge(this.state, newState)
 		this.state.time = newState.time
 		this.state.startTime = newState.startTime
 		this.state.state = newState.state
 		this.state.winner = newState.winner
 
-		newState.players.forEach((p, idx) => {
+		// delete removed players
+		const activePlayers = keyBy(newState.players, (p) => p.id)
+		for (const key of this.state.players.keys()) {
+			if (activePlayers[key]) {
+				continue
+			}
+
+			this.state.players.delete(key)
+			this.state.pPlayers.delete(key)
+			this.state.cPlayers.delete(key)
+		}
+
+		// go through players
+		newState.players.forEach((p) => {
 			if (!this.state.players.has(p.id)) {
 				this.state.players.set(p.id, new ServerPlayer())
+				this.state.pPlayers.set(p.id, new ServerPlayer())
+				this.state.cPlayers.set(p.id, new ServerPlayer())
 			}
 
-			const ep = this.state.players.get(p.id)
-			if (ep.enabled !== p.enabled) {
-				merge(ep.location, p.location)
-				console.log(`${ep.enabled} !== ${p.enabled}`)
+			const serverPlayer = this.state.players.get(p.id)
+			const predictionPlayer = this.state.pPlayers.get(p.id)
+			const clientPlayer = this.state.cPlayers.get(p.id)
+
+			const reEnable = !serverPlayer.enabled && p.enabled
+
+			serverPlayer.id = p.id
+			serverPlayer.color = p.color
+			serverPlayer.ready = p.ready
+			serverPlayer.lastTimeStamp = p.lastTimeStamp
+			serverPlayer.enabled = p.enabled
+			merge(serverPlayer.velocity, p.velocity)
+			merge(serverPlayer.location, p.location)
+			merge(serverPlayer.input, p.input)
+
+			predictionPlayer.id = p.id
+			predictionPlayer.color = p.color
+			predictionPlayer.ready = p.ready
+			predictionPlayer.lastTimeStamp = p.lastTimeStamp
+			if (predictionPlayer.lastTimeStamp < 0) {
+				merge(predictionPlayer.velocity, p.velocity)
+				merge(predictionPlayer.location, p.location)
 			}
 
-			ep.id = p.id
-			ep.idx = idx
-			ep.ready = p.ready
-			ep.enabled = p.enabled
-			ep.lastTimeStamp = p.lastTimeStamp
-			merge(ep.velocity, p.velocity)
-			merge(ep.slocation, p.location)
-			merge(ep.plocation, p.location)
-			if (p.id !== this.localPlayer.id || newState.state !== State.Playing) {
-				merge(ep.location, p.location)
+			if (reEnable) {
+				predictionPlayer.enabled = p.enabled
+				Logic.removeRespawn(p, 'prediction')
 			}
 
-			merge(ep.input, p.input)
+			clientPlayer.id = p.id
+			clientPlayer.color = p.color
+			clientPlayer.ready = p.ready
+			if (clientPlayer.lastTimeStamp < 0) {
+				merge(clientPlayer.velocity, p.velocity)
+				merge(clientPlayer.location, p.location)
+			}
+			clientPlayer.lastTimeStamp = p.lastTimeStamp
+
+			if (reEnable) {
+				merge(clientPlayer.velocity, p.velocity)
+				merge(clientPlayer.location, p.location)
+				clientPlayer.enabled = p.enabled
+				Logic.removeRespawn(p, 'client')
+			}
 		})
 
 		const p = this.state.players.get(this.user.id)
-		if (!p) {
-			return
+		if (p) {
+			// calculate RTT
+			const now = Date.now()
+			// NOTE: assuming packets always arrive in the
+			// order it was sent aka old timestamps won't come after
+			// newer timestamps
+			const rtt = (now - (p.lastTimeStamp || now)) * 0.001
+			this._rtt = (this._rtt + rtt) * 0.5
 		}
 
-		// calculate RTT
-		const now = Date.now()
-		// NOTE: assuming packets always arrive in the
-		// order it was sent aka old timestamps won't come after
-		// newer timestamps
-		const rtt = now - (p.lastTimeStamp || now)
-		this._rtt = (this._rtt + rtt) * 0.5
+		this.needsPrediction = true
+	}
 
-		if (newState.state !== State.Playing) {
+	predictionSim() {
+		if (!this.needsPrediction || this.state.state !== State.Playing) {
 			return
 		}
 
 		// prediction
-		// remove all moves (flaps) older or equal to lastTimeStamp
-		while (this.moves.length > 0) {
-			const move = this.moves[0]
-			if (move.time > p.lastTimeStamp) {
-				break
+		this.state.pPlayers.forEach((p) => {
+			const sp = this.state.players.get(p.id)
+			merge(p.velocity, sp.velocity)
+			merge(p.location, sp.location)
+
+			if (p.id === this.localPlayer.id) {
+				// LOCAL player
+				// remove all moves older or equal to lastTimeStamp
+				while (this.moves.length > 0) {
+					const move = this.moves[0]
+					if (move.time > p.lastTimeStamp) {
+						break
+					}
+
+					this.moves.shift()
+				}
+
+				// sim remaining moves
+				for (const move of this.moves) {
+					p.input.space = move.flap
+					const playerRect = Player.rect(p.location.x, p.location.y)
+					const { died } = Logic.collisions(playerRect)
+					p.enabled = !died
+
+					const { x, y } = Logic.playerMove(p.location.x, p.location.y, p, STEP)
+					p.location.x = x
+					p.location.y = y
+
+					if (p.enabled) {
+						const playerRect = Player.rect(p.location.x, p.location.y)
+						Logic.collisions(playerRect)
+					}
+				}
+
+				// nudge towards predicted location
+				// in a perfect world, predicted location is the same as
+				// client location
+				const cp = this.state.cPlayers.get(p.id)
+				const dx = cp.location.x - p.location.x
+				const dy = cp.location.y - p.location.y
+				cp.location.x = p.location.x + dx * 0.8
+				cp.location.y = p.location.y + dy * 0.8
+				cp.velocity.x = p.velocity.x
+				cp.velocity.y = p.velocity.y
+			} else {
+				// REMOTE player (dead reckoning)
+				// sim for half RTT
+				let accumulator = this.rtt * 0.5
+
+				while (accumulator >= DELTA) {
+					const playerRect = Player.rect(p.location.x, p.location.y)
+					const { died } = Logic.collisions(playerRect)
+					p.enabled = !died
+					const { x, y } = Logic.playerMove(p.location.x, p.location.y, p, STEP)
+					p.location.x = x
+					p.location.y = y
+
+					if (p.enabled) {
+						const playerRect = Player.rect(p.location.x, p.location.y)
+						Logic.collisions(playerRect)
+					}
+
+					accumulator -= DELTA
+				}
+
+				const cp = this.state.cPlayers.get(p.id)
+				const dx = cp.location.x - p.location.x
+				const dy = cp.location.y - p.location.y
+				cp.location.x = p.location.x + dx * 0.5
+				cp.location.y = p.location.y + dy * 0.5
+				cp.velocity.x = p.velocity.x
+				cp.velocity.y = p.velocity.y
 			}
+		})
 
-			this.moves.shift()
-		}
+		this.state.pPlayers.forEach(Logic.end)
 
-		// sim remaining moves
-		for (const move of this.moves) {
-			p.input.space = move.flap
-			p.enabled = move.enabled
-
-			const { x, y } = Move.playerMove(p.slocation.x, p.slocation.y, p, 1 / 60)
-			p.plocation.x = x
-			p.plocation.y = y
-
-			const playerRect = Player.rect(p.plocation.x, p.plocation.y)
-			const { died } = Move.collisions(playerRect)
-			p.enabled = !died
-			Move.end(p)
-		}
+		this.needsPrediction = false
 	}
 }

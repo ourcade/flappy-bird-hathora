@@ -17,14 +17,29 @@ function createPipe(x: number, y: number, flipped = false) {
 	}
 }
 
+function createPipeGap(x: number, y: number, gap: number) {
+	return [createPipe(x, y, true), createPipe(x, y + pipeConfig.height + gap)]
+}
+
 export const level = {
-	pipes: [createPipe(500, 0, true)],
-	ground: Rect.create(0, 400, {
+	pipes: [
+		...createPipeGap(700, -200, 200),
+		...createPipeGap(900, -200, 150),
+		...createPipeGap(1100, -100, 100),
+		...createPipeGap(1300, -50, 120),
+		...createPipeGap(1500, -300, 150),
+		...createPipeGap(1750, -50, 75),
+		...createPipeGap(1950, -200, 100),
+		...createPipeGap(2200, 0, 130),
+		...createPipeGap(2400, 0, 80),
+		...createPipeGap(2600, -130, 120),
+	],
+	ground: Rect.create(0, 420, {
 		padding: { x: 0, y: 0 },
-		width: 5000,
+		width: 10000,
 		height: 80,
 	}),
-	goal: Rect.create(1000, 0, {
+	goal: Rect.create(2800, 0, {
 		padding: { x: 20, y: 0 },
 		height: 2000,
 		width: 100,

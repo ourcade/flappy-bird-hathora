@@ -100,6 +100,14 @@ export const App = observer(function () {
 			}
 			setLoggedIn(true)
 		})
+
+		window.addEventListener(
+			'beforeunload',
+			() => {
+				rootStore.server.disconnect()
+			},
+			{ once: true }
+		)
 	}, [])
 
 	const getComponent = () => {

@@ -1,7 +1,7 @@
 import * as Rect from './rect'
 
 const playerConfig = {
-	padding: { x: 0, y: 0 },
+	padding: { x: 4, y: 4 },
 	width: 34,
 	height: 24,
 }

@@ -10,3 +10,4 @@ dist
 /client/web/public/.DS_Store
 /.DS_Store
 /client/.DS_Store
+/client/web/public/assets/.DS_Store

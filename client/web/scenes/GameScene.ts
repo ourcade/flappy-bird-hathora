@@ -1,17 +1,25 @@
-import { autorun } from 'mobx'
+import { autorun, reaction } from 'mobx'
 import type { IReactionDisposer } from 'mobx'
 import Phaser from 'phaser'
 
 import { rootStore } from '../store'
 import { level } from '../../../server/shared/level'
-import { Move, Player, State } from '../../../server/shared'
+import {
+	Logic,
+	Player,
+	State,
+	DELTA,
+	STEP,
+	VELOCITY,
+	COLOR_STRING,
+} from '../../../server/shared'
 
-const delta = 1e3 / 60
-const step = 1 / 60
+const delta = DELTA
+const step = STEP
 let accumulator = 0
 
 export class GameScene extends Phaser.Scene {
-	private players = new Map<string, Phaser.GameObjects.Rectangle>()
+	private players = new Map<string, Phaser.GameObjects.Sprite>()
 	private playersDebug = new Map<string, Phaser.GameObjects.Rectangle>()
 	private playersPredictedDebug = new Map<
 		string,
@@ -28,6 +36,15 @@ export class GameScene extends Phaser.Scene {
 
 	init() {
 		this.cursors = this.input.keyboard.createCursorKeys()
+		this.players.clear()
+		this.playersDebug.clear()
+		this.playersPredictedDebug.clear()
+
+		const toggleDebug = () => {
+			rootStore.setDebug(!rootStore.debug)
+		}
+		const key = 'keydown-D'
+		this.input.keyboard.on(key, toggleDebug)
 
 		this.events.once(Phaser.Scenes.Events.DESTROY, () => {
 			rootStore.server.connection?.leaveGame({})
@@ -36,24 +53,27 @@ export class GameScene extends Phaser.Scene {
 
 		this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
 			this.subs.forEach((sub) => sub())
+			this.input.keyboard.off(key, toggleDebug)
 		})
 	}
 
 	create() {
 		const { width, height } = this.scale
 		this.background = this.add
-			.tileSprite(0, height, width, height, 'background')
+			.tileSprite(0, height, width, height, 'flappy', 'background-day.png')
 			.setOrigin(0, 1)
 			.setScrollFactor(0)
 
-		const g = level.ground
-		this.ground = this.add
-			.tileSprite(g.left, g.top, g.right - g.left, g.bottom - g.top, 'base')
+		const goal = level.goal
+		this.add
+			.image(goal.left, goal.top, 'flappy', 'goal.png')
 			.setOrigin(0)
+			.setAlpha(0.7)
 
 		this.readyText = this.add
 			.text(width * 0.5, height * 0.5, 'Press SPACE when ready...')
 			.setOrigin(0.5)
+			.setScrollFactor(0)
 
 		this.countdownText = this.add
 			.text(width * 0.5, height * 0.5, '3', {
@@ -63,6 +83,27 @@ export class GameScene extends Phaser.Scene {
 			})
 			.setOrigin(0.5)
 			.setVisible(false)
+			.setScrollFactor(0)
+
+		level.pipes.forEach((pipe) => {
+			const p = this.add
+				.image(pipe.x, pipe.y, 'flappy', 'pipe-green.png')
+				.setOrigin(0)
+			p.flipY = pipe.flipped
+		})
+
+		const g = level.ground
+		this.ground = this.add
+			.tileSprite(
+				g.left,
+				g.top,
+				g.right - g.left,
+				g.bottom - g.top,
+				'flappy',
+				'base.png'
+			)
+			.setOrigin(0)
+			.setScrollFactor(0)
 
 		this.input.keyboard.once('keydown-SPACE', () => {
 			if (rootStore.server.localPlayer.ready) {
@@ -73,24 +114,46 @@ export class GameScene extends Phaser.Scene {
 			rootStore.server.connection.ready({})
 		})
 
-		level.pipes.forEach((pipe) => {
-			const p = this.add.image(pipe.x, pipe.y, 'pipe').setOrigin(0)
-			p.flipY = pipe.flipped
-		})
-
-		const goal = level.goal
-		this.add.image(goal.left, goal.top, 'goal').setOrigin(0).setAlpha(0.7)
-
 		this.handlePlayerJoins()
 		this.handleStateEnter()
+
+		this.subs.push(
+			reaction(
+				() => rootStore.debug,
+				() => {
+					this.playersDebug.forEach((rect) => {
+						rect.setVisible(rootStore.debug)
+					})
+					this.playersPredictedDebug.forEach((rect) => {
+						rect.setVisible(rootStore.debug)
+					})
+				}
+			)
+		)
 	}
 
 	private handlePlayerJoins() {
 		this.subs.push(
-			// player joins
+			// player joins/leaves
 			autorun(() => {
 				const players = rootStore.server.state.players.entries()
 				const localPlayer = rootStore.server.localPlayer
+
+				this.readyText.visible = !localPlayer.ready
+
+				for (const key of this.players.keys()) {
+					if (rootStore.server.state.players.has(key)) {
+						continue
+					}
+
+					this.players.get(key)?.destroy()
+					this.playersDebug.get(key)?.destroy()
+					this.playersPredictedDebug.get(key)?.destroy()
+
+					this.players.delete(key)
+					this.playersDebug.delete(key)
+					this.playersPredictedDebug.delete(key)
+				}
 
 				for (const entry of players) {
 					const id = entry[0]
@@ -98,17 +161,24 @@ export class GameScene extends Phaser.Scene {
 						continue
 					}
 
-					const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xf0f0f]
+					const colors = [0xf8b733, 0xff0000, 0xbf4ed6, 0x3db229]
 					const p = entry[1]
 					const player = this.add
-						.rectangle(p.location.x, p.location.y, 34, 24, colors[p.idx])
+						.sprite(
+							p.location.x,
+							p.location.y,
+							'flappy',
+							`${COLOR_STRING[p.color]}bird-midflap.png`
+						)
 						.setOrigin(0)
+						.play(`${COLOR_STRING[p.color]}-idle`)
 
 					this.players.set(id, player)
 
 					const debug = this.add
-						.rectangle(p.location.x, p.location.y, 34, 24, colors[p.idx], 0.5)
+						.rectangle(p.location.x, p.location.y, 34, 24, colors[p.color], 0.5)
 						.setOrigin(0)
+						.setVisible(rootStore.debug)
 					this.playersDebug.set(id, debug)
 
 					const predicted = this.add
@@ -116,12 +186,15 @@ export class GameScene extends Phaser.Scene {
 						.setOrigin(0)
 						.setStrokeStyle(1, 0x000000, 0.5)
 						.setFillStyle()
+						.setVisible(rootStore.debug)
 					this.playersPredictedDebug.set(id, predicted)
 
 					if (localPlayer.id === p.id) {
-						this.cameras.main.startFollow(player)
+						this.cameras.main.startFollow(player, true)
+						this.cameras.main.setFollowOffset(-34, 0)
+						this.cameras.main.setDeadzone(50, 0)
 						// NOTE: width should be something else and based on whatever level is loaded
-						this.cameras.main.setBounds(0, 0, 10000, this.scale.height)
+						this.cameras.main.setBounds(-1000, 0, 10000, this.scale.height)
 					}
 				}
 			})
@@ -139,13 +212,32 @@ export class GameScene extends Phaser.Scene {
 				this.countdownText.setVisible(true)
 			}),
 			// playing,
-			autorun(() => {
-				if (rootStore.server.state.state !== State.Playing) {
-					return
-				}
+			reaction(
+				() => rootStore.server.state.state,
+				() => {
+					if (rootStore.server.state.state !== State.Playing) {
+						return
+					}
 
-				this.countdownText.setVisible(false)
-			}),
+					this.countdownText.setVisible(false)
+
+					rootStore.server.state.cPlayers.forEach((player) => {
+						const serverPlayer = rootStore.server.state.players.get(player.id)
+						player.velocity.x = VELOCITY.x
+						player.velocity.y = VELOCITY.y
+
+						player.location.x = serverPlayer.location.x
+						player.location.y = serverPlayer.location.y
+
+						const sprite = this.players.get(player.id)
+						sprite.play(`${COLOR_STRING[player.color]}-fly`)
+					})
+
+					this.time.delayedCall(1000, () => {
+						this.cameras.main.setLerp(0.3, 0.5)
+					})
+				}
+			),
 			// winner
 			autorun(() => {
 				const winner = rootStore.server.state.winner
@@ -161,7 +253,7 @@ export class GameScene extends Phaser.Scene {
 				const cam = this.cameras.main
 				cam.stopFollow()
 				cam.pan(
-					winningPlayer.x,
+					winningPlayer.x + 17,
 					winningPlayer.y,
 					700,
 					Phaser.Math.Easing.Sine.InOut
@@ -196,55 +288,85 @@ export class GameScene extends Phaser.Scene {
 		const space = Phaser.Input.Keyboard.JustDown(this.cursors.space)
 
 		switch (rootStore.server.state.state) {
+			default:
+				rootStore.server.action()
+				break
+
 			case State.Finished: {
+				rootStore.server.action()
 				for (const entry of rootStore.server.state.players.entries()) {
 					const id = entry[0]
 					const sprite = this.players.get(id)
 					const debug = this.playersDebug.get(id)
 					const predicted = this.playersPredictedDebug.get(id)
+
 					const p = rootStore.server.state.players.get(id)
-					sprite.x = p.location.x
-					sprite.y = p.location.y
-					debug.x = p.slocation.x
-					debug.y = p.slocation.y
-					predicted.x = p.plocation.x
-					predicted.y = p.plocation.y
+					const cp = rootStore.server.state.cPlayers.get(id)
+					const pp = rootStore.server.state.pPlayers.get(id)
+
+					sprite.x = cp.location.x
+					sprite.y = cp.location.y
+					debug.x = p.location.x
+					debug.y = p.location.y
+					predicted.x = pp.location.x
+					predicted.y = pp.location.y
 				}
 				break
 			}
 
 			case State.Playing: {
+				rootStore.server.action()
 				for (const entry of rootStore.server.state.players.entries()) {
 					const id = entry[0]
 					const sprite = this.players.get(id)
 					const debug = this.playersDebug.get(id)
 					const predicted = this.playersPredictedDebug.get(id)
-					const p = rootStore.server.state.players.get(id)
 
-					if (p.id === rootStore.server.localPlayer.id) {
-						rootStore.server.action(space, p.enabled)
-						p.input.space = space
-						const { x, y } = Move.playerMove(p.location.x, p.location.y, p, dt)
-						p.location.x = x
-						p.location.y = y
-						const playerRect = Player.rect(p.location.x, p.location.y)
-						const { died } = Move.collisions(playerRect)
-						p.enabled = !died
-						Move.end(p)
-					} else {
-						// dead reckoning for remote
+					const cp = rootStore.server.state.cPlayers.get(id)
+					const isLocalPlayer = id === rootStore.server.localPlayer.id
+
+					if (isLocalPlayer) {
+						rootStore.server.action(space)
+						cp.input.space = space
 					}
 
-					sprite.x = p.location.x
-					sprite.y = p.location.y
-					debug.x = p.slocation.x
-					debug.y = p.slocation.y
-					predicted.x = p.plocation.x
-					predicted.y = p.plocation.y
+					const playerRect = Player.rect(cp.location.x, cp.location.y)
+					const { died } = Logic.collisions(playerRect)
+					cp.enabled = !died
+
+					const { x, y } = Logic.playerMove(
+						cp.location.x,
+						cp.location.y,
+						cp,
+						dt
+					)
+					cp.location.x = x
+					cp.location.y = y
+
+					if (cp.enabled) {
+						const playerRect = Player.rect(cp.location.x, cp.location.y)
+						const { died } = Logic.collisions(playerRect)
+						if (died && isLocalPlayer) {
+							this.cameras.main.shake(200, 0.02, true)
+						}
+					}
+					Logic.end(cp)
+
+					sprite.x = cp.location.x
+					sprite.y = cp.location.y
+
+					const p = rootStore.server.state.players.get(id)
+					const pp = rootStore.server.state.pPlayers.get(id)
+
+					debug.x = p.location.x
+					debug.y = p.location.y
+					predicted.x = pp.location.x
+					predicted.y = pp.location.y
 				}
 			}
 
 			case State.Countdown: {
+				rootStore.server.action()
 				const diff =
 					rootStore.server.state.startTime - rootStore.server.state.time
 				const secs = Math.ceil(diff)
@@ -254,7 +376,6 @@ export class GameScene extends Phaser.Scene {
 		}
 
 		const sx = this.cameras.main.scrollX
-		this.background.tilePositionX = sx
 		this.ground.tilePositionX = sx
 	}
 
@@ -270,5 +391,7 @@ export class GameScene extends Phaser.Scene {
 			this.fixedUpdate(step)
 			accumulator -= delta
 		}
+
+		rootStore.server.predictionSim()
 	}
 }
