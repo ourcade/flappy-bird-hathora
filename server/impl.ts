@@ -1,5 +1,5 @@
-import { Methods, Context } from './.hathora/methods';
-import { Response } from '../api/base';
+import { Methods, Context } from './.hathora/methods'
+import { Response } from '../api/base'
 import {
 	GameState,
 	UserId,
@@ -11,21 +11,21 @@ import {
 	IPingRequest,
 	Color,
 	Input,
-} from '../api/types';
+} from '../api/types'
 
-import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared';
+import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared'
 
 type InternalState = GameState & {
-	id: number;
-	colorsBag: Color[];
-	accumulator: number;
-	keepAlive: Map<string, number>;
-	lastTimestamps: Map<string, number>;
-	inputs: Map<string, Input>;
-};
+	id: number
+	colorsBag: Color[]
+	accumulator: number
+	keepAlive: Map<string, number>
+	lastTimestamps: Map<string, number>
+	inputs: Map<string, Input>
+}
 
-const delta = DELTA / 1000;
-const step = STEP;
+const delta = DELTA / 1000
+const step = STEP
 
 export class Impl implements Methods<InternalState> {
 	initialize(ctx: Context, request: IInitializeRequest): InternalState {
@@ -41,23 +41,23 @@ export class Impl implements Methods<InternalState> {
 			keepAlive: new Map(),
 			lastTimestamps: new Map(),
 			inputs: new Map(),
-		};
+		}
 	}
 
 	joinGame(state: InternalState, userId: UserId, ctx: Context, request: IJoinGameRequest): Response {
 		if (state.state === State.Playing) {
-			return Response.error('cannot join a game that already started');
+			return Response.error('cannot join a game that already started')
 		}
 
-		const existingPlayer = state.players.find((p) => p.id === userId);
+		const existingPlayer = state.players.find((p) => p.id === userId)
 		if (existingPlayer) {
 			// TODO: any logic if you rejoined?
-			return Response.ok();
+			return Response.ok()
 		}
 
-		const idx = state.players.length;
+		const idx = state.players.length
 		if (idx >= 4) {
-			return Response.error('maximum players joined');
+			return Response.error('maximum players joined')
 		}
 
 		state.players.push({
@@ -68,177 +68,177 @@ export class Impl implements Methods<InternalState> {
 			enabled: true,
 			lastTimeStamp: 0,
 			color: state.colorsBag.shift() ?? Color.Yellow,
-		});
+		})
 
-		state.state = State.WaitingForPlayers;
+		state.state = State.WaitingForPlayers
 
-		return Response.ok();
+		return Response.ok()
 	}
 
 	leaveGame(state: InternalState, userId: string, ctx: Context, request: ILeaveGameRequest): Response {
-		const idx = state.players.findIndex((p) => p.id === userId);
+		const idx = state.players.findIndex((p) => p.id === userId)
 		if (idx < 0) {
-			return Response.error('player not found');
+			return Response.error('player not found')
 		}
 
-		const p = state.players.splice(idx, 1)[0];
-		console.log(`${p.id} left`);
-		state.colorsBag.push(p.color);
-		state.keepAlive.delete(p.id);
+		const p = state.players.splice(idx, 1)[0]
+		console.log(`${p.id} left`)
+		state.colorsBag.push(p.color)
+		state.keepAlive.delete(p.id)
 
-		return Response.ok();
+		return Response.ok()
 	}
 
 	ready(state: InternalState, userId: string, ctx: Context, request: IReadyRequest): Response {
-		const player = state.players.find((player) => player.id === userId);
+		const player = state.players.find((player) => player.id === userId)
 		if (!player) {
-			return Response.error('player not found');
+			return Response.error('player not found')
 		}
-		player.ready = true;
-		return Response.ok();
+		player.ready = true
+		return Response.ok()
 	}
 
 	ping(state: InternalState, userId: string, ctx: Context, request: IPingRequest): Response {
-		const time = request.time;
+		const time = request.time
 
 		// set this on player after update
-		state.lastTimestamps.set(userId, time);
+		state.lastTimestamps.set(userId, time)
 
 		if (!state.keepAlive.has(userId)) {
-			state.keepAlive.set(userId, 0);
+			state.keepAlive.set(userId, 0)
 		}
-		state.keepAlive.set(userId, performance.now());
+		state.keepAlive.set(userId, performance.now())
 
-		return Response.ok();
+		return Response.ok()
 	}
 
 	flap(state: InternalState, userId: UserId, ctx: Context, request: IFlapRequest): Response {
 		if (state.state !== State.Playing) {
-			return Response.error('not in playing state');
+			return Response.error('not in playing state')
 		}
 
-		const player = state.players.find((player) => player.id === userId);
+		const player = state.players.find((player) => player.id === userId)
 		if (!player) {
-			return Response.error('player not found');
+			return Response.error('player not found')
 		}
 
 		// NOTE: dropped or lost inputs/moves are not handled or mitigated here
 		// which means client can show the player having moved up but
 		// the server never got the input and therefore did not sim a move up
 		// so the player will be corrected to server's position in the next patch update
-		const input = state.inputs.get(userId) ?? { space: false };
-		input.space = true;
-		state.inputs.set(userId, input);
+		const input = state.inputs.get(userId) ?? { space: false }
+		input.space = true
+		state.inputs.set(userId, input)
 
-		return Response.ok();
+		return Response.ok()
 	}
 
 	getUserState(state: InternalState, userId: UserId): GameState {
-		return state;
+		return state
 	}
 
 	tick(state: InternalState, dt: number) {
-		state.time += dt;
+		state.time += dt
 
 		switch (state.state) {
 			default:
-				break;
+				break
 
 			case State.WaitingForPlayers:
 				if (state.players.length <= 0) {
-					break;
+					break
 				}
 
 				if (!!state.players.find((p) => !p.ready)) {
-					break;
+					break
 				}
 
-				state.state = State.Countdown;
+				state.state = State.Countdown
 				// start in 3s
-				state.startTime = state.time + 3;
-				break;
+				state.startTime = state.time + 3
+				break
 
 			case State.Countdown:
 				if (state.time < state.startTime) {
-					break;
+					break
 				}
 
 				state.players.forEach((player) => {
-					player.velocity.x = VELOCITY.x;
-					player.velocity.y = VELOCITY.y;
-				});
-				state.accumulator = 0;
-				state.state = State.Playing;
-				break;
+					player.velocity.x = VELOCITY.x
+					player.velocity.y = VELOCITY.y
+				})
+				state.accumulator = 0
+				state.state = State.Playing
+				break
 
 			case State.Playing:
-				this.playTick(state, dt);
-				break;
+				this.playTick(state, dt)
+				break
 
 			case State.Finished:
-				break;
+				break
 		}
 	}
 
 	onTick(state: InternalState, ctx: Context, dt: number): void {
-		state.accumulator += dt;
+		state.accumulator += dt
 
 		// NOTE: this is to get 60 updates per second
 		while (state.accumulator >= delta) {
-			this.tick(state, step);
-			state.accumulator -= delta;
+			this.tick(state, step)
+			state.accumulator -= delta
 		}
 
-		const now = performance.now();
-		const remove: string[] = [];
+		const now = performance.now()
+		const remove: string[] = []
 		for (const key of state.keepAlive.keys()) {
-			const t = state.keepAlive.get(key);
+			const t = state.keepAlive.get(key)
 			if (t && now - t > 5 * 1000) {
 				// kick this player
-				remove.push(key);
+				remove.push(key)
 			}
 		}
 
 		remove.forEach((id) => {
-			this.leaveGame(state, id, ctx, {});
-		});
+			this.leaveGame(state, id, ctx, {})
+		})
 	}
 
 	playTick(state: InternalState, dt: number) {
 		// end of each tick
 		for (const player of state.players) {
-			Logic.simRespawn(player, dt);
+			Logic.simRespawn(player, dt)
 
-			const input = state.inputs.get(player.id) ?? { space: false };
-			Logic.processInput(player, input);
+			const input = state.inputs.get(player.id) ?? { space: false }
+			Logic.processInput(player, input)
 
-			const { x, y } = Logic.playerMove(player.location.x, player.location.y, player, dt);
-			player.location.x = x;
-			player.location.y = y;
+			const { x, y } = Logic.playerMove(player.location.x, player.location.y, player, dt)
+			player.location.x = x
+			player.location.y = y
 
 			if (player.enabled) {
-				const playerRect = Player.rect(player.location.x, player.location.y);
-				const { goal, died } = Logic.collisions(playerRect);
+				const playerRect = Player.rect(player.location.x, player.location.y)
+				const { goal, died } = Logic.collisions(playerRect)
 
 				if (goal) {
-					state.winner = player.id;
+					state.winner = player.id
 				} else if (died) {
-					Logic.queueRespawn(player);
+					Logic.queueRespawn(player)
 				}
 			}
 		}
 
 		if (state.winner) {
-			state.state = State.Finished;
+			state.state = State.Finished
 		}
 
 		state.players.forEach((p) => {
-			p.lastTimeStamp = state.lastTimestamps.get(p.id) ?? 0;
-			const input = state.inputs.get(p.id);
+			p.lastTimeStamp = state.lastTimestamps.get(p.id) ?? 0
+			const input = state.inputs.get(p.id)
 			if (input) {
-				input.space = false;
-				state.inputs.set(p.id, input);
+				input.space = false
+				state.inputs.set(p.id, input)
 			}
-		});
+		})
 	}
 }
