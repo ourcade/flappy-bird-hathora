@@ -15,48 +15,30 @@ import {
 
 import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared'
 
-type InternalState = GameState
-
-const delta = DELTA / 1000
-const step = STEP
-
-// NOTE: for some reason class properties don't seem to
-// be persisting across method calls; this is a workaround
-let idCounter = 0
-const state: {
+type InternalState = GameState & {
 	colorsBag: Color[]
 	accumulator: number
 	keepAlive: Map<string, number>
 	lastTimestamps: Map<string, number>
 	inputs: Map<string, Input>
-}[] = []
-
-function createState(id: number) {
-	state[id] = {
-		colorsBag: [...COLORS],
-		accumulator: 0,
-		keepAlive: new Map(),
-		lastTimestamps: new Map(),
-		inputs: new Map(),
-	}
-	return state[id]
 }
 
-function getState(id: number) {
-	return state[id] ?? createState(id)
-}
+const delta = DELTA / 1000
+const step = STEP
 
 export class Impl implements Methods<InternalState> {
 	initialize(ctx: Context, request: IInitializeRequest): InternalState {
-		const id = idCounter++
-		createState(id)
 		return {
-			id,
 			state: State.Empty,
 			time: 0,
 			startTime: 0,
 			players: [],
 			winner: '',
+			colorsBag: [...COLORS],
+			accumulator: 0,
+			keepAlive: new Map(),
+			lastTimestamps: new Map(),
+			inputs: new Map(),
 		}
 	}
 
@@ -88,7 +70,7 @@ export class Impl implements Methods<InternalState> {
 			velocity: { x: 0, y: 0 },
 			enabled: true,
 			lastTimeStamp: 0,
-			color: getState(state.id).colorsBag.shift() ?? Color.Yellow,
+			color: state.colorsBag.shift() ?? Color.Yellow,
 		})
 
 		state.state = State.WaitingForPlayers
@@ -97,7 +79,7 @@ export class Impl implements Methods<InternalState> {
 	}
 
 	leaveGame(
-		state: GameState,
+		state: InternalState,
 		userId: string,
 		ctx: Context,
 		request: ILeaveGameRequest
@@ -109,15 +91,14 @@ export class Impl implements Methods<InternalState> {
 
 		const p = state.players.splice(idx, 1)[0]
 		console.log(`${p.id} left`)
-		const s = getState(state.id)
-		s.colorsBag.push(p.color)
-		s.keepAlive.delete(p.id)
+		state.colorsBag.push(p.color)
+		state.keepAlive.delete(p.id)
 
 		return Response.ok()
 	}
 
 	ready(
-		state: GameState,
+		state: InternalState,
 		userId: string,
 		ctx: Context,
 		request: IReadyRequest
@@ -131,21 +112,20 @@ export class Impl implements Methods<InternalState> {
 	}
 
 	ping(
-		state: GameState,
+		state: InternalState,
 		userId: string,
 		ctx: Context,
 		request: IPingRequest
 	): Response {
 		const time = request.time
-		const s = getState(state.id)
 
 		// set this on player after update
-		s.lastTimestamps.set(userId, time)
+		state.lastTimestamps.set(userId, time)
 
-		if (!s.keepAlive.has(userId)) {
-			s.keepAlive.set(userId, 0)
+		if (!state.keepAlive.has(userId)) {
+			state.keepAlive.set(userId, 0)
 		}
-		s.keepAlive.set(userId, performance.now())
+		state.keepAlive.set(userId, performance.now())
 
 		return Response.ok()
 	}
@@ -169,10 +149,9 @@ export class Impl implements Methods<InternalState> {
 		// which means client can show the player having moved up but
 		// the server never got the input and therefore did not sim a move up
 		// so the player will be corrected to server's position in the next patch update
-		const s = getState(state.id)
-		const input = s.inputs.get(userId) ?? { space: false }
+		const input = state.inputs.get(userId) ?? { space: false }
 		input.space = true
-		s.inputs.set(userId, input)
+		state.inputs.set(userId, input)
 
 		return Response.ok()
 	}
@@ -211,7 +190,7 @@ export class Impl implements Methods<InternalState> {
 					player.velocity.x = VELOCITY.x
 					player.velocity.y = VELOCITY.y
 				})
-				getState(state.id).accumulator = 0
+				state.accumulator = 0
 				state.state = State.Playing
 				break
 
@@ -225,29 +204,18 @@ export class Impl implements Methods<InternalState> {
 	}
 
 	onTick(state: InternalState, ctx: Context, dt: number): void {
-		if (state.id === undefined) {
-			console.log(`state.id not defined`)
-			return
-		}
-
-		const s = getState(state.id)
-		if (!s) {
-			console.error('missing state')
-			return
-		}
-
-		s.accumulator += dt
+		state.accumulator += dt
 
 		// NOTE: this is to get 60 updates per second
-		while (s.accumulator >= delta) {
+		while (state.accumulator >= delta) {
 			this.tick(state, step)
-			s.accumulator -= delta
+			state.accumulator -= delta
 		}
 
 		const now = performance.now()
 		const remove: string[] = []
-		for (const key of s.keepAlive.keys()) {
-			const t = s.keepAlive.get(key)
+		for (const key of state.keepAlive.keys()) {
+			const t = state.keepAlive.get(key)
 			if (t && now - t > 5 * 1000) {
 				// kick this player
 				remove.push(key)
@@ -261,12 +229,10 @@ export class Impl implements Methods<InternalState> {
 
 	playTick(state: InternalState, dt: number) {
 		// end of each tick
-		const s = getState(state.id)
-
 		for (const player of state.players) {
 			Logic.simRespawn(player, dt)
 
-			const input = s.inputs.get(player.id) ?? { space: false }
+			const input = state.inputs.get(player.id) ?? { space: false }
 			Logic.processInput(player, input)
 
 			const { x, y } = Logic.playerMove(
@@ -295,11 +261,11 @@ export class Impl implements Methods<InternalState> {
 		}
 
 		state.players.forEach((p) => {
-			p.lastTimeStamp = s.lastTimestamps.get(p.id) ?? 0
-			const input = s.inputs.get(p.id)
+			p.lastTimeStamp = state.lastTimestamps.get(p.id) ?? 0
+			const input = state.inputs.get(p.id)
 			if (input) {
 				input.space = false
-				s.inputs.set(p.id, input)
+				state.inputs.set(p.id, input)
 			}
 		})
 	}
