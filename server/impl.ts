@@ -23,20 +23,18 @@ const step = STEP
 // be persisting across method calls; this is a workaround
 let idCounter = 0
 const state: {
-	frames: number
-	total: number
 	colorsBag: Color[]
 	accumulator: number
 	keepAlive: Map<string, number>
+	lastTimestamps: Map<string, number>
 }[] = []
 
 function createState(id: number) {
 	state[id] = {
-		frames: 0,
-		total: 0,
 		colorsBag: [...COLORS],
 		accumulator: 0,
-		keepAlive: new Map<string, number>(),
+		keepAlive: new Map(),
+		lastTimestamps: new Map(),
 	}
 	return state[id]
 }
@@ -133,17 +131,15 @@ export class Impl implements Methods<InternalState> {
 		request: IPingRequest
 	): Response {
 		const time = request.time
-		const player = state.players.find((player) => player.id === userId)
-		if (!player) {
-			return Response.error('player not found')
-		}
-
-		player.lastTimeStamp = time
 		const s = getState(state.id)
-		if (!s.keepAlive.has(player.id)) {
-			s.keepAlive.set(player.id, 0)
+
+		// set this on player after update
+		s.lastTimestamps.set(userId, time)
+
+		if (!s.keepAlive.has(userId)) {
+			s.keepAlive.set(userId, 0)
 		}
-		s.keepAlive.set(player.id, performance.now())
+		s.keepAlive.set(userId, performance.now())
 
 		return Response.ok()
 	}
@@ -225,27 +221,12 @@ export class Impl implements Methods<InternalState> {
 			return
 		}
 
-		s.total += dt
 		s.accumulator += dt
 
 		// NOTE: this is to get 60 updates per second
 		while (s.accumulator >= delta) {
 			this.tick(state, step)
-
-			++s.frames
-
 			s.accumulator -= delta
-		}
-
-		if (s.total >= 1000) {
-			// sim extra frames to get to 60 as needed
-			// may not be necessary
-			for (let i = s.frames; i < 60; ++i) {
-				this.tick(state, step)
-			}
-
-			s.frames = 0
-			s.total -= 1000
 		}
 
 		const now = performance.now()
@@ -255,7 +236,6 @@ export class Impl implements Methods<InternalState> {
 			if (t && now - t > 5 * 1000) {
 				// kick this player
 				remove.push(key)
-				console.log(`remove ${key}: ${(now - t) * 0.001}s`)
 			}
 		}
 
@@ -266,7 +246,7 @@ export class Impl implements Methods<InternalState> {
 
 	playTick(state: InternalState, dt: number) {
 		for (const player of state.players) {
-			Logic.simRespawn(player, 'server', dt)
+			Logic.simRespawn(player, dt)
 
 			const { x, y } = Logic.playerMove(
 				player.location.x,
@@ -284,7 +264,7 @@ export class Impl implements Methods<InternalState> {
 				if (goal) {
 					state.winner = player.id
 				} else if (died) {
-					Logic.queueRespawn(player, 'server')
+					Logic.queueRespawn(player)
 				}
 			}
 		}
@@ -294,6 +274,10 @@ export class Impl implements Methods<InternalState> {
 		}
 
 		// end of each tick
-		state.players.forEach(Logic.end)
+		const s = getState(state.id)
+		state.players.forEach((p) => {
+			Logic.end(p)
+			p.lastTimeStamp = s.lastTimestamps.get(p.id) ?? 0
+		})
 	}
 }

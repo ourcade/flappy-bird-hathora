@@ -64,7 +64,7 @@ export class ServerStore {
 	private _rtt = 0
 	private moves: { time: number; flap: boolean }[] = []
 
-	private needsPrediction = false
+	private needsReplayAndPrediction = false
 
 	get token() {
 		return this._token
@@ -142,6 +142,8 @@ export class ServerStore {
 
 	action(flap?: boolean) {
 		const now = Date.now()
+		// ping used as heartbeat and means of
+		// calculating round trip time
 		this.connection.ping({ time: now })
 		if (flap === undefined) {
 			return
@@ -151,6 +153,8 @@ export class ServerStore {
 			this.connection.flap({})
 		}
 
+		// store moves for each frame with a timestamp
+		// will be used for client side replay
 		this.moves.push({ time: now, flap })
 	}
 
@@ -198,6 +202,7 @@ export class ServerStore {
 
 			const reEnable = !serverPlayer.enabled && p.enabled
 
+			// last received server player data
 			serverPlayer.id = p.id
 			serverPlayer.color = p.color
 			serverPlayer.ready = p.ready
@@ -207,6 +212,7 @@ export class ServerStore {
 			merge(serverPlayer.location, p.location)
 			merge(serverPlayer.input, p.input)
 
+			// to hold client side replay and prediction results
 			predictionPlayer.id = p.id
 			predictionPlayer.color = p.color
 			predictionPlayer.ready = p.ready
@@ -218,9 +224,9 @@ export class ServerStore {
 
 			if (reEnable) {
 				predictionPlayer.enabled = p.enabled
-				Logic.removeRespawn(p, 'prediction')
 			}
 
+			// for client simuation values
 			clientPlayer.id = p.id
 			clientPlayer.color = p.color
 			clientPlayer.ready = p.ready
@@ -234,7 +240,6 @@ export class ServerStore {
 				merge(clientPlayer.velocity, p.velocity)
 				merge(clientPlayer.location, p.location)
 				clientPlayer.enabled = p.enabled
-				Logic.removeRespawn(p, 'client')
 			}
 		})
 
@@ -249,15 +254,15 @@ export class ServerStore {
 			this._rtt = (this._rtt + rtt) * 0.5
 		}
 
-		this.needsPrediction = true
+		this.needsReplayAndPrediction = true
 	}
 
-	predictionSim() {
-		if (!this.needsPrediction || this.state.state !== State.Playing) {
+	replayAndPrediction() {
+		if (!this.needsReplayAndPrediction || this.state.state !== State.Playing) {
 			return
 		}
 
-		// prediction
+		// prediction/replay
 		this.state.pPlayers.forEach((p) => {
 			const sp = this.state.players.get(p.id)
 			merge(p.velocity, sp.velocity)
@@ -275,7 +280,7 @@ export class ServerStore {
 					this.moves.shift()
 				}
 
-				// sim remaining moves
+				// replay remaining moves
 				for (const move of this.moves) {
 					p.input.space = move.flap
 					const playerRect = Player.rect(p.location.x, p.location.y)
@@ -292,8 +297,8 @@ export class ServerStore {
 					}
 				}
 
-				// nudge towards predicted location
-				// in a perfect world, predicted location is the same as
+				// nudge towards replayed location
+				// in a perfect world, replayed location is the same as
 				// client location
 				const cp = this.state.cPlayers.get(p.id)
 				const dx = cp.location.x - p.location.x
@@ -335,6 +340,6 @@ export class ServerStore {
 
 		this.state.pPlayers.forEach(Logic.end)
 
-		this.needsPrediction = false
+		this.needsReplayAndPrediction = false
 	}
 }

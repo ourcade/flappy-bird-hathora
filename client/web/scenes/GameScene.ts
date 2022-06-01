@@ -29,7 +29,6 @@ export class GameScene extends Phaser.Scene {
 	private countdownText: Phaser.GameObjects.Text
 
 	private cursors: Phaser.Types.Input.Keyboard.CursorKeys
-	private background: Phaser.GameObjects.TileSprite
 	private ground: Phaser.GameObjects.TileSprite
 
 	private subs: IReactionDisposer[] = []
@@ -59,7 +58,7 @@ export class GameScene extends Phaser.Scene {
 
 	create() {
 		const { width, height } = this.scale
-		this.background = this.add
+		this.add
 			.tileSprite(0, height, width, height, 'flappy', 'background-day.png')
 			.setOrigin(0, 1)
 			.setScrollFactor(0)
@@ -193,7 +192,7 @@ export class GameScene extends Phaser.Scene {
 						this.cameras.main.startFollow(player, true)
 						this.cameras.main.setFollowOffset(-34, 0)
 						this.cameras.main.setDeadzone(50, 0)
-						// NOTE: width should be something else and based on whatever level is loaded
+
 						this.cameras.main.setBounds(-1000, 0, 10000, this.scale.height)
 					}
 				}
@@ -289,6 +288,7 @@ export class GameScene extends Phaser.Scene {
 
 		switch (rootStore.server.state.state) {
 			default:
+				// this also acts as a keep alive heartbeat
 				rootStore.server.action()
 				break
 
@@ -392,6 +392,6 @@ export class GameScene extends Phaser.Scene {
 			accumulator -= delta
 		}
 
-		rootStore.server.predictionSim()
+		rootStore.server.replayAndPrediction()
 	}
 }

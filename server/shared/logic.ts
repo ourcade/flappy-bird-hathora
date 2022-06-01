@@ -4,33 +4,23 @@ import { GRAVITY } from './consts'
 import * as Rect from './rect'
 import * as Level from './level'
 
-type RespawnType = 'server' | 'prediction' | 'client'
 const respawn = new Map<string, { accumulatedTime: number }>()
 
-const respawnKey = (id: string, type: RespawnType) => `${type}-${id}`
+const respawnKey = (id: string) => id
 
-export function isRespawning(id: string, type: RespawnType) {
-	return respawn.has(respawnKey(id, type))
-}
-
-export function queueRespawn(player: Logic, type: RespawnType) {
+export function queueRespawn(player: Logic) {
 	player.enabled = false
 	player.velocity.y = 0
-	respawn.set(respawnKey(player.id, type), { accumulatedTime: 0 })
+	respawn.set(respawnKey(player.id), { accumulatedTime: 0 })
 }
 
-export function removeRespawn(player: Logic, type: RespawnType) {
-	const key = respawnKey(player.id, type)
-	respawn.delete(key)
-}
-
-export function simRespawn(player: Logic, type: RespawnType, dt: number) {
-	const key = respawnKey(player.id, type)
+export function simRespawn(player: Logic, dt: number) {
+	const key = respawnKey(player.id)
 	if (respawn.has(key)) {
 		const rs = respawn.get(key)!
 		rs.accumulatedTime += dt
 		if (rs.accumulatedTime >= 0.5) {
-			removeRespawn(player, type)
+			respawn.delete(key)
 			player.location.x = Math.max(180, player.location.x - 120)
 			player.location.y = 220
 			player.velocity.y = 0
