@@ -11,9 +11,10 @@ import {
 	IPingRequest,
 	Color,
 	Input,
+	State,
 } from '../api/types'
 
-import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared'
+import { Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared'
 
 type InternalState = GameState
 

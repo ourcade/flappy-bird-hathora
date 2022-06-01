@@ -1,13 +1,5 @@
 import { Color } from '../../api/types'
 
-export enum State {
-	Empty,
-	WaitingForPlayers,
-	Countdown,
-	Playing,
-	Finished,
-}
-
 export const GRAVITY = { x: 0, y: 350 }
 export const VELOCITY = { x: 100, y: 0 }
 export const COLORS = [Color.Yellow, Color.Red, Color.Purple, Color.Green]
