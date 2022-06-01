@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from 'react'
 import Phaser from 'phaser'
-import { Columns, Section } from 'react-bulma-components'
+import { Columns, Section, Button } from 'react-bulma-components'
 import { GameScene } from './scenes/GameScene'
 import { PreloadScene } from './scenes/PreloadScene'
+import { rootStore } from './store'
 
 export function Game() {
 	const ref = useRef()
@@ -35,11 +36,33 @@ export function Game() {
 		}
 	}, [ref.current])
 
+	const handleBack = () => {
+		rootStore.server.disconnect()
+	}
+
 	return (
 		<Section>
 			<Columns centered vCentered>
-				<Columns.Column size={12} style={{ textAlign: 'center' }}>
-					<div style={{ aspectRatio: '16 / 9' }} ref={ref}></div>
+				<Columns.Column
+					size={12}
+					style={{
+						textAlign: 'center',
+						background: '#421278',
+						paddingTop: '18px',
+						borderRadius: '6px',
+					}}
+				>
+					<div
+						style={{
+							aspectRatio: '16 / 9',
+						}}
+						ref={ref}
+					></div>
+				</Columns.Column>
+			</Columns>
+			<Columns centered vCentered mt={2}>
+				<Columns.Column paddingless>
+					<Button onClick={handleBack}>Back</Button>
 				</Columns.Column>
 			</Columns>
 		</Section>
