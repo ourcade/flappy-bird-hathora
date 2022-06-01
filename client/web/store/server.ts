@@ -34,9 +34,12 @@ class ServerPlayer implements PlayerType {
 	ready: boolean = false
 	location = new Vec2()
 	velocity = new Vec2()
-	input = { space: false }
 	enabled = true
 	lastTimeStamp = -1
+
+	constructor() {
+		makeAutoObservable(this)
+	}
 }
 
 class ServerState {
@@ -201,6 +204,7 @@ export class ServerStore {
 			const clientPlayer = this.state.cPlayers.get(p.id)
 
 			const reEnable = !serverPlayer.enabled && p.enabled
+			const disable = serverPlayer.enabled && !p.enabled
 
 			// last received server player data
 			serverPlayer.id = p.id
@@ -210,7 +214,6 @@ export class ServerStore {
 			serverPlayer.enabled = p.enabled
 			merge(serverPlayer.velocity, p.velocity)
 			merge(serverPlayer.location, p.location)
-			merge(serverPlayer.input, p.input)
 
 			// to hold client side replay and prediction results
 			predictionPlayer.id = p.id
@@ -222,7 +225,9 @@ export class ServerStore {
 				merge(predictionPlayer.location, p.location)
 			}
 
-			if (reEnable) {
+			if (reEnable || disable) {
+				merge(predictionPlayer.velocity, p.velocity)
+				merge(predictionPlayer.location, p.location)
 				predictionPlayer.enabled = p.enabled
 			}
 
@@ -236,7 +241,7 @@ export class ServerStore {
 			}
 			clientPlayer.lastTimeStamp = p.lastTimeStamp
 
-			if (reEnable) {
+			if (reEnable || disable) {
 				merge(clientPlayer.velocity, p.velocity)
 				merge(clientPlayer.location, p.location)
 				clientPlayer.enabled = p.enabled
@@ -282,11 +287,11 @@ export class ServerStore {
 
 				// replay remaining moves
 				for (const move of this.moves) {
-					p.input.space = move.flap
 					const playerRect = Player.rect(p.location.x, p.location.y)
 					const { died } = Logic.collisions(playerRect)
 					p.enabled = !died
 
+					Logic.processInput(p, { space: move.flap })
 					const { x, y } = Logic.playerMove(p.location.x, p.location.y, p, STEP)
 					p.location.x = x
 					p.location.y = y
@@ -304,8 +309,8 @@ export class ServerStore {
 				const dx = cp.location.x - p.location.x
 				const dy = cp.location.y - p.location.y
 
-				cp.location.x = p.location.x + dx * 0.8
-				cp.location.y = p.location.y + dy * 0.8
+				cp.location.x = p.location.x + dx * 0.5
+				cp.location.y = p.location.y + dy * 0.5
 				cp.velocity.x = p.velocity.x
 				cp.velocity.y = p.velocity.y
 			} else {
@@ -338,8 +343,6 @@ export class ServerStore {
 				cp.velocity.y = p.velocity.y
 			}
 		})
-
-		this.state.pPlayers.forEach(Logic.end)
 
 		this.needsReplayAndPrediction = false
 	}

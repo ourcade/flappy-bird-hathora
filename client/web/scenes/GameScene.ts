@@ -117,6 +117,16 @@ export class GameScene extends Phaser.Scene {
 		this.handleStateEnter()
 
 		this.subs.push(
+			autorun(() => {
+				const { localPlayer, localClientPlayer } = rootStore.server
+				if (!localClientPlayer || !localPlayer) {
+					return
+				}
+
+				if (!localClientPlayer.enabled && !localPlayer.enabled) {
+					this.cameras.main.shake(200, 0.02, true)
+				}
+			}),
 			reaction(
 				() => rootStore.debug,
 				() => {
@@ -138,7 +148,7 @@ export class GameScene extends Phaser.Scene {
 				const players = rootStore.server.state.players.entries()
 				const localPlayer = rootStore.server.localPlayer
 
-				this.readyText.visible = !localPlayer.ready
+				this.readyText.visible = !localPlayer?.ready ?? false
 
 				for (const key of this.players.keys()) {
 					if (rootStore.server.state.players.has(key)) {
@@ -232,6 +242,10 @@ export class GameScene extends Phaser.Scene {
 						sprite.play(`${COLOR_STRING[player.color]}-fly`)
 					})
 
+					// NOTE: could potentially sim position by half RTT here
+					// as the server is ahead by roughly half RTT by the time
+					// we get the packet that tells us state changed to Playing
+
 					this.time.delayedCall(1000, () => {
 						this.cameras.main.setLerp(0.3, 0.5)
 					})
@@ -315,7 +329,7 @@ export class GameScene extends Phaser.Scene {
 			}
 
 			case State.Playing: {
-				rootStore.server.action()
+				rootStore.server.action(space)
 				for (const entry of rootStore.server.state.players.entries()) {
 					const id = entry[0]
 					const sprite = this.players.get(id)
@@ -326,8 +340,7 @@ export class GameScene extends Phaser.Scene {
 					const isLocalPlayer = id === rootStore.server.localPlayer.id
 
 					if (isLocalPlayer) {
-						rootStore.server.action(space)
-						cp.input.space = space
+						Logic.processInput(cp, { space })
 					}
 
 					const playerRect = Player.rect(cp.location.x, cp.location.y)
@@ -345,12 +358,8 @@ export class GameScene extends Phaser.Scene {
 
 					if (cp.enabled) {
 						const playerRect = Player.rect(cp.location.x, cp.location.y)
-						const { died } = Logic.collisions(playerRect)
-						if (died && isLocalPlayer) {
-							this.cameras.main.shake(200, 0.02, true)
-						}
+						Logic.collisions(playerRect)
 					}
-					Logic.end(cp)
 
 					sprite.x = cp.location.x
 					sprite.y = cp.location.y

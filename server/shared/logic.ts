@@ -1,4 +1,4 @@
-import type { Player as Logic } from '../../api/types'
+import type { Input, Player as PlayerType } from '../../api/types'
 import { GRAVITY } from './consts'
 
 import * as Rect from './rect'
@@ -8,13 +8,13 @@ const respawn = new Map<string, { accumulatedTime: number }>()
 
 const respawnKey = (id: string) => id
 
-export function queueRespawn(player: Logic) {
+export function queueRespawn(player: PlayerType) {
 	player.enabled = false
 	player.velocity.y = 0
 	respawn.set(respawnKey(player.id), { accumulatedTime: 0 })
 }
 
-export function simRespawn(player: Logic, dt: number) {
+export function simRespawn(player: PlayerType, dt: number) {
 	const key = respawnKey(player.id)
 	if (respawn.has(key)) {
 		const rs = respawn.get(key)!
@@ -29,13 +29,24 @@ export function simRespawn(player: Logic, dt: number) {
 	}
 }
 
-export function playerMove(x: number, y: number, player: Logic, dt: number) {
+export function processInput(player: PlayerType, input: Input) {
 	if (!player.enabled) {
-		return { x, y }
+		return
 	}
 
-	if (player.input.space) {
+	if (input.space) {
 		player.velocity.y = -GRAVITY.y * 0.5
+	}
+}
+
+export function playerMove(
+	x: number,
+	y: number,
+	player: PlayerType,
+	dt: number
+) {
+	if (!player.enabled) {
+		return { x, y }
 	}
 
 	player.velocity.y = Math.min(250, player.velocity.y + GRAVITY.y * dt)
@@ -71,8 +82,4 @@ export function collisions(playerRect: Rect.Rectangle) {
 		goal: false,
 		died,
 	}
-}
-
-export function end(player: Logic) {
-	player.input.space = false
 }

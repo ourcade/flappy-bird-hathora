@@ -16,7 +16,6 @@ types:
     ready: boolean
     location: Vector2
     velocity: Vector2
-    input: Input
     enabled: boolean
     lastTimeStamp: int
     color: Color

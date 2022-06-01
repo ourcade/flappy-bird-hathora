@@ -10,6 +10,7 @@ import {
 	ILeaveGameRequest,
 	IPingRequest,
 	Color,
+	Input,
 } from '../api/types'
 
 import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared'
@@ -27,6 +28,7 @@ const state: {
 	accumulator: number
 	keepAlive: Map<string, number>
 	lastTimestamps: Map<string, number>
+	inputs: Map<string, Input>
 }[] = []
 
 function createState(id: number) {
@@ -35,6 +37,7 @@ function createState(id: number) {
 		accumulator: 0,
 		keepAlive: new Map(),
 		lastTimestamps: new Map(),
+		inputs: new Map(),
 	}
 	return state[id]
 }
@@ -79,7 +82,6 @@ export class Impl implements Methods<InternalState> {
 			ready: false,
 			location: { x: 180, y: 120 + idx * 30 },
 			velocity: { x: 0, y: 0 },
-			input: { space: false },
 			enabled: true,
 			lastTimeStamp: 0,
 			color: getState(state.id).colorsBag.shift() ?? Color.Yellow,
@@ -163,7 +165,10 @@ export class Impl implements Methods<InternalState> {
 		// which means client can show the player having moved up but
 		// the server never got the input and therefore did not sim a move up
 		// so the player will be corrected to server's position in the next patch update
-		player.input.space = true
+		const s = getState(state.id)
+		const input = s.inputs.get(userId) ?? { space: false }
+		input.space = true
+		s.inputs.set(userId, input)
 
 		return Response.ok()
 	}
@@ -251,8 +256,14 @@ export class Impl implements Methods<InternalState> {
 	}
 
 	playTick(state: InternalState, dt: number) {
+		// end of each tick
+		const s = getState(state.id)
+
 		for (const player of state.players) {
 			Logic.simRespawn(player, dt)
+
+			const input = s.inputs.get(player.id) ?? { space: false }
+			Logic.processInput(player, input)
 
 			const { x, y } = Logic.playerMove(
 				player.location.x,
@@ -279,11 +290,13 @@ export class Impl implements Methods<InternalState> {
 			state.state = State.Finished
 		}
 
-		// end of each tick
-		const s = getState(state.id)
 		state.players.forEach((p) => {
-			Logic.end(p)
 			p.lastTimeStamp = s.lastTimestamps.get(p.id) ?? 0
+			const input = s.inputs.get(p.id)
+			if (input) {
+				input.space = false
+				s.inputs.set(p.id, input)
+			}
 		})
 	}
 }
