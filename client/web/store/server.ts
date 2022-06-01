@@ -125,14 +125,11 @@ export class ServerStore {
 	}
 
 	async connect(stateId: string) {
-		const conn = this.client.connect(
-			this._token,
-			stateId,
-			(update) => {
-				this.updateState(update.state)
-			},
-			console.error
-		)
+		const conn = await this.client.connect(this._token, stateId)
+		conn.onUpdate((update) => {
+			this.updateState(update.state)
+		})
+		conn.onError(console.error)
 		const res = await conn.joinGame({})
 		if (res.type !== 'ok') {
 			conn.disconnect()
