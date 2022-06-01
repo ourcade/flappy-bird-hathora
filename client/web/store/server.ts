@@ -303,6 +303,7 @@ export class ServerStore {
 				const cp = this.state.cPlayers.get(p.id)
 				const dx = cp.location.x - p.location.x
 				const dy = cp.location.y - p.location.y
+
 				cp.location.x = p.location.x + dx * 0.8
 				cp.location.y = p.location.y + dy * 0.8
 				cp.velocity.x = p.velocity.x

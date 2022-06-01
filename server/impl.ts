@@ -158,7 +158,13 @@ export class Impl implements Methods<InternalState> {
 		if (!player) {
 			return Response.error('player not found')
 		}
+
+		// NOTE: dropped or lost inputs/moves are not handled or mitigated here
+		// which means client can show the player having moved up but
+		// the server never got the input and therefore did not sim a move up
+		// so the player will be corrected to server's position in the next patch update
 		player.input.space = true
+
 		return Response.ok()
 	}
 
