@@ -7,12 +7,12 @@ import { level } from '../../../server/shared/level'
 import {
 	Logic,
 	Player,
-	State,
 	DELTA,
 	STEP,
 	VELOCITY,
 	COLOR_STRING,
 } from '../../../server/shared'
+import { State } from '../../../api/types'
 
 const delta = DELTA
 const step = STEP

@@ -3,7 +3,7 @@ import merge from 'lodash/merge'
 import keyBy from 'lodash/keyBy'
 
 import { HathoraClient } from '../../.hathora/client'
-import { Color } from '../../../api/types'
+import { Color, State } from '../../../api/types'
 import type { HathoraConnection } from '../../.hathora/client'
 import type {
 	GameState,
@@ -12,7 +12,7 @@ import type {
 	Vector2,
 } from '../../../api/types'
 
-import { Logic, State, Player, DELTA, STEP } from '../../../server/shared'
+import { Logic, Player, DELTA, STEP } from '../../../server/shared'
 
 const TOKEN_KEY = 'hathora-token'
 function storeToken(token: string) {

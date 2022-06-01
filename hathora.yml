@@ -5,6 +5,12 @@ types:
     - Red
     - Purple
     - Green
+  State:
+    - Empty
+    - WaitingForPlayers
+    - Countdown
+    - Playing
+    - Finished
   Vector2:
     x: float
     y: float
