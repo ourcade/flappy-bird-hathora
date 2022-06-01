@@ -16,7 +16,6 @@ import {
 import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared'
 
 type InternalState = GameState & {
-	id: number
 	colorsBag: Color[]
 	accumulator: number
 	keepAlive: Map<string, number>
@@ -30,7 +29,6 @@ const step = STEP
 export class Impl implements Methods<InternalState> {
 	initialize(ctx: Context, request: IInitializeRequest): InternalState {
 		return {
-			id: 0,
 			state: State.Empty,
 			time: 0,
 			startTime: 0,
