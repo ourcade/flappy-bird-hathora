@@ -44,7 +44,12 @@ export class Impl implements Methods<InternalState> {
 		}
 	}
 
-	joinGame(state: InternalState, userId: UserId, ctx: Context, request: IJoinGameRequest): Response {
+	joinGame(
+		state: InternalState,
+		userId: UserId,
+		ctx: Context,
+		request: IJoinGameRequest
+	): Response {
 		if (state.state === State.Playing) {
 			return Response.error('cannot join a game that already started')
 		}
@@ -75,7 +80,12 @@ export class Impl implements Methods<InternalState> {
 		return Response.ok()
 	}
 
-	leaveGame(state: InternalState, userId: string, ctx: Context, request: ILeaveGameRequest): Response {
+	leaveGame(
+		state: InternalState,
+		userId: string,
+		ctx: Context,
+		request: ILeaveGameRequest
+	): Response {
 		const idx = state.players.findIndex((p) => p.id === userId)
 		if (idx < 0) {
 			return Response.error('player not found')
@@ -89,7 +99,12 @@ export class Impl implements Methods<InternalState> {
 		return Response.ok()
 	}
 
-	ready(state: InternalState, userId: string, ctx: Context, request: IReadyRequest): Response {
+	ready(
+		state: InternalState,
+		userId: string,
+		ctx: Context,
+		request: IReadyRequest
+	): Response {
 		const player = state.players.find((player) => player.id === userId)
 		if (!player) {
 			return Response.error('player not found')
@@ -98,7 +113,12 @@ export class Impl implements Methods<InternalState> {
 		return Response.ok()
 	}
 
-	ping(state: InternalState, userId: string, ctx: Context, request: IPingRequest): Response {
+	ping(
+		state: InternalState,
+		userId: string,
+		ctx: Context,
+		request: IPingRequest
+	): Response {
 		const time = request.time
 
 		// set this on player after update
@@ -112,7 +132,12 @@ export class Impl implements Methods<InternalState> {
 		return Response.ok()
 	}
 
-	flap(state: InternalState, userId: UserId, ctx: Context, request: IFlapRequest): Response {
+	flap(
+		state: InternalState,
+		userId: UserId,
+		ctx: Context,
+		request: IFlapRequest
+	): Response {
 		if (state.state !== State.Playing) {
 			return Response.error('not in playing state')
 		}
@@ -212,7 +237,12 @@ export class Impl implements Methods<InternalState> {
 			const input = state.inputs.get(player.id) ?? { space: false }
 			Logic.processInput(player, input)
 
-			const { x, y } = Logic.playerMove(player.location.x, player.location.y, player, dt)
+			const { x, y } = Logic.playerMove(
+				player.location.x,
+				player.location.y,
+				player,
+				dt
+			)
 			player.location.x = x
 			player.location.y = y
 
