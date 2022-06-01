@@ -77,6 +77,10 @@ export class Impl implements Methods<InternalState> {
 		}
 
 		const idx = state.players.length
+		if (idx >= 4) {
+			return Response.error('maximum players joined')
+		}
+
 		state.players.push({
 			id: userId,
 			ready: false,

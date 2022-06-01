@@ -54,6 +54,10 @@ export function playerMove(
 	x += player.velocity.x * dt
 	y += player.velocity.y * dt
 
+	if (y < -10) {
+		y = -10
+	}
+
 	return { x, y }
 }
 
