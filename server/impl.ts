@@ -1,5 +1,5 @@
-import { Methods, Context } from "./.hathora/methods";
-import { Response } from "../api/base";
+import { Methods, Context } from './.hathora/methods';
+import { Response } from '../api/base';
 import {
 	GameState,
 	UserId,
@@ -11,9 +11,9 @@ import {
 	IPingRequest,
 	Color,
 	Input,
-} from "../api/types";
+} from '../api/types';
 
-import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from "./shared";
+import { State, Logic, Player, DELTA, STEP, VELOCITY, COLORS } from './shared';
 
 type InternalState = GameState & {
 	id: number;
@@ -35,7 +35,7 @@ export class Impl implements Methods<InternalState> {
 			time: 0,
 			startTime: 0,
 			players: [],
-			winner: "",
+			winner: '',
 			colorsBag: [...COLORS],
 			accumulator: 0,
 			keepAlive: new Map(),
@@ -46,7 +46,7 @@ export class Impl implements Methods<InternalState> {
 
 	joinGame(state: InternalState, userId: UserId, ctx: Context, request: IJoinGameRequest): Response {
 		if (state.state === State.Playing) {
-			return Response.error("cannot join a game that already started");
+			return Response.error('cannot join a game that already started');
 		}
 
 		const existingPlayer = state.players.find((p) => p.id === userId);
@@ -57,7 +57,7 @@ export class Impl implements Methods<InternalState> {
 
 		const idx = state.players.length;
 		if (idx >= 4) {
-			return Response.error("maximum players joined");
+			return Response.error('maximum players joined');
 		}
 
 		state.players.push({
@@ -78,7 +78,7 @@ export class Impl implements Methods<InternalState> {
 	leaveGame(state: InternalState, userId: string, ctx: Context, request: ILeaveGameRequest): Response {
 		const idx = state.players.findIndex((p) => p.id === userId);
 		if (idx < 0) {
-			return Response.error("player not found");
+			return Response.error('player not found');
 		}
 
 		const p = state.players.splice(idx, 1)[0];
@@ -92,7 +92,7 @@ export class Impl implements Methods<InternalState> {
 	ready(state: InternalState, userId: string, ctx: Context, request: IReadyRequest): Response {
 		const player = state.players.find((player) => player.id === userId);
 		if (!player) {
-			return Response.error("player not found");
+			return Response.error('player not found');
 		}
 		player.ready = true;
 		return Response.ok();
@@ -114,12 +114,12 @@ export class Impl implements Methods<InternalState> {
 
 	flap(state: InternalState, userId: UserId, ctx: Context, request: IFlapRequest): Response {
 		if (state.state !== State.Playing) {
-			return Response.error("not in playing state");
+			return Response.error('not in playing state');
 		}
 
 		const player = state.players.find((player) => player.id === userId);
 		if (!player) {
-			return Response.error("player not found");
+			return Response.error('player not found');
 		}
 
 		// NOTE: dropped or lost inputs/moves are not handled or mitigated here
