@@ -34,7 +34,7 @@ The symptoms of this can be seen in cases where the client thinks it has collide
 
 Lost inputs can also be seen when a large correction occurs because while the client simulated pressing space, the server didn't get it and so the authoritative position is one where the player kept falling.
 
-[Check out this GDC talk for more on how games like Overwatch handle these issues.](https://www.gdcvault.com/play/1024001/-Overwatch-Gameplay-Architecture-and).
+[Check out this GDC talk for more on how games like Overwatch handle these issues.](https://www.gdcvault.com/play/1024001/-Overwatch-Gameplay-Architecture-and)
 
 ## Getting Started
 
