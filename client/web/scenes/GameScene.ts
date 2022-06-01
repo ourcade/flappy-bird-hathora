@@ -30,6 +30,7 @@ export class GameScene extends Phaser.Scene {
 
 	private cursors: Phaser.Types.Input.Keyboard.CursorKeys
 	private ground: Phaser.GameObjects.TileSprite
+	private youArrow: Phaser.GameObjects.Image
 
 	private subs: IReactionDisposer[] = []
 
@@ -70,7 +71,8 @@ export class GameScene extends Phaser.Scene {
 			.setAlpha(0.7)
 
 		this.readyText = this.add
-			.text(width * 0.5, height * 0.5, 'Press SPACE when ready...')
+			.text(width * 0.5, height * 0.6, 'Press SPACE when ready...')
+			.setStroke('#000000', 4)
 			.setOrigin(0.5)
 			.setScrollFactor(0)
 
@@ -204,6 +206,14 @@ export class GameScene extends Phaser.Scene {
 						this.cameras.main.setDeadzone(50, 0)
 
 						this.cameras.main.setBounds(-1000, 0, 10000, this.scale.height)
+
+						this.youArrow = this.add
+							.image(
+								player.x + player.width * 1.25,
+								player.y + player.height * 0.4,
+								'you-arrow'
+							)
+							.setOrigin(0, 0.5)
 					}
 				}
 			})
@@ -219,6 +229,7 @@ export class GameScene extends Phaser.Scene {
 				}
 
 				this.countdownText.setVisible(true)
+				this.youArrow?.destroy()
 			}),
 			// playing,
 			reaction(

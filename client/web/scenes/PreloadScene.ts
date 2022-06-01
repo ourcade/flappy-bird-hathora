@@ -5,6 +5,7 @@ import { rootStore } from '../store'
 export class PreloadScene extends Phaser.Scene {
 	preload() {
 		this.load.atlas('flappy', 'assets/flappy.png', 'assets/flappy.json')
+		this.load.image('you-arrow', 'assets/you-arrow.png')
 	}
 
 	create() {
