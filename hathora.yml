@@ -27,7 +27,7 @@ types:
     color: Color
   # GameState has an array of players
   GameState:
-    state: int
+    state: State
     time: float
     startTime: float
     players: Player[]
