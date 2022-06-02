@@ -1,3 +1,5 @@
+<img width="1051" alt="Screen Shot 2022-06-02 at 4 38 30 PM" src="https://user-images.githubusercontent.com/2236153/171733929-fa039b93-e698-401f-a1f7-b1eb02c0a427.png">
+
 # Multiplayer Flappy Bird with Hathora
 
 > A basic implementation of Flappy Bird with real-time multiplayer
@@ -7,6 +9,8 @@
 This is a simple game of Flappy Bird except up to 4 people can compete to see who gets to the end first while traversing through gaps between pipes.
 
 Running into the ground or a pipe will reset you backwards giving your opponents a chance to take the lead.
+
+[Try it out here!](https://flappy-bird-hathora.pages.dev) Send the link to friends to have them join.
 
 ## Latency Strategies
 
