@@ -16,11 +16,11 @@ import { Logic, Player, DELTA, STEP } from '../../../server/shared'
 
 const TOKEN_KEY = 'hathora-token'
 function storeToken(token: string) {
-	localStorage.setItem(TOKEN_KEY, token)
+	sessionStorage.setItem(TOKEN_KEY, token)
 }
 
 function getToken() {
-	return localStorage.getItem(TOKEN_KEY)
+	return sessionStorage.getItem(TOKEN_KEY)
 }
 
 class Vec2 implements Vector2 {
