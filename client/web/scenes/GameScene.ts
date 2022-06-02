@@ -50,12 +50,10 @@ export class GameScene extends Phaser.Scene {
 		const handleBlur = () => {
 			intervalId = window.setInterval(() => {
 				// still send pings (in the case the app is unfocused)
-				console.log('interval action')
 				rootStore.server.action()
 			}, 500)
 		}
 		const handleFocus = () => {
-			console.log('clear interval')
 			window.clearInterval(intervalId)
 			intervalId = -1
 		}
