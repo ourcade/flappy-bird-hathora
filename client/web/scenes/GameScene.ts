@@ -402,6 +402,8 @@ export class GameScene extends Phaser.Scene {
 	update(_t: number, dt: number) {
 		if (dt > 1e3) {
 			// skip large dt's
+			// still send pings (in the case the app is unfocused)
+			rootStore.server.action()
 			return
 		}
 
