@@ -20,4 +20,7 @@ jobs:
         with:
           node-version: 16.14.2
       - run: npm install hathora -g
-      - run: hathora cloud deploy --appName flappy-race --token ${{ secrets.HATHORA_TOKEN }}
+      - name: Hathora version
+        run: echo hathora --version
+      - name: Deploy
+        run: hathora cloud deploy --appName flappy-race --token ${{ secrets.HATHORA_TOKEN }}
