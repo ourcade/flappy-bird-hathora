@@ -46,6 +46,23 @@ export class GameScene extends Phaser.Scene {
 		const key = 'keydown-D'
 		this.input.keyboard.on(key, toggleDebug)
 
+		let intervalId = -1
+		const handleBlur = () => {
+			intervalId = window.setInterval(() => {
+				// still send pings (in the case the app is unfocused)
+				console.log('interval action')
+				rootStore.server.action()
+			}, 500)
+		}
+		const handleFocus = () => {
+			console.log('clear interval')
+			window.clearInterval(intervalId)
+			intervalId = -1
+		}
+
+		window.addEventListener('blur', handleBlur)
+		window.addEventListener('focus', handleFocus)
+
 		this.events.once(Phaser.Scenes.Events.DESTROY, () => {
 			rootStore.server.connection?.leaveGame({})
 			rootStore.server.connection?.disconnect()
@@ -54,6 +71,8 @@ export class GameScene extends Phaser.Scene {
 		this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
 			this.subs.forEach((sub) => sub())
 			this.input.keyboard.off(key, toggleDebug)
+			window.removeEventListener('blur', handleBlur)
+			window.removeEventListener('focus', handleFocus)
 		})
 	}
 
@@ -402,8 +421,6 @@ export class GameScene extends Phaser.Scene {
 	update(_t: number, dt: number) {
 		if (dt > 1e3) {
 			// skip large dt's
-			// still send pings (in the case the app is unfocused)
-			rootStore.server.action()
 			return
 		}
 
