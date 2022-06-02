@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  # deploy to hathora cloud
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
+      - run: npm install hathora -g
+      - run: hathora cloud deploy --appName flappy-race --token ${{ secrets.HATHORA_TOKEN }}
