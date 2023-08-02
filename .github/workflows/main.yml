@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 16.14.2
-      - run: npm install hathora -g
+      - run: npm install @hathora/cli -g
       - name: Hathora version
-        run: hathora --version
+        run: hathora-cloud --version
       - name: Deploy
-        run: hathora cloud deploy --appName flappy-race --token ${{ secrets.HATHORA_TOKEN }}
+        run: hathora-cloud deploy --appId app-e2476b33-a573-4d45-9a04-39e80a3a31fd --token ${{ secrets.HATHORA_TOKEN }}
