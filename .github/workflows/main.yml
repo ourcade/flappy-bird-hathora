@@ -23,4 +23,4 @@ jobs:
       - name: Hathora version
         run: hathora-cloud --version
       - name: Deploy
-        run: hathora-cloud deploy --appId app-e2476b33-a573-4d45-9a04-39e80a3a31fd --token ${{ secrets.HATHORA_CLOUD_TOKEN }}
+        run: hathora-cloud deploy --appId app-e2476b33-a573-4d45-9a04-39e80a3a31fd --token ${{ secrets.HATHORA_TOKEN }}
